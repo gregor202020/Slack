@@ -1,0 +1,10 @@
+# Default owners
+* @gabrielrips
+
+# Backend
+/apps/api/ @gabrielrips
+/packages/db/ @gabrielrips
+
+# Frontend
+/apps/web/ @gabrielrips
+/apps/mobile/ @gabrielrips

@@ -12,7 +12,8 @@
     "db:generate": "turbo run db:generate --filter=@smoker/db",
     "db:migrate": "turbo run db:migrate --filter=@smoker/db",
     "db:seed": "turbo run db:seed --filter=@smoker/db",
-    "db:studio": "turbo run db:studio --filter=@smoker/db"
+    "db:studio": "turbo run db:studio --filter=@smoker/db",
+    "test": "turbo run test"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

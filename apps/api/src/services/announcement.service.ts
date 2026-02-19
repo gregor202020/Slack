@@ -25,6 +25,7 @@ import {
 import { logAudit } from '../lib/audit.js'
 import { getIO } from '../plugins/socket.js'
 import { emitToUser } from '../plugins/socket.js'
+import { notifyNewAnnouncement, sendToUsers } from './notification.service.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -196,6 +197,13 @@ export async function createAnnouncement(
 
   // Broadcast to all connected sockets — announcements are high-priority
   getIO().emit('announcement:new', announcement)
+
+  // Push notification (non-blocking)
+  notifyNewAnnouncement({
+    id: announcement.id,
+    title: announcement.title,
+    venueId: announcement.venueId,
+  }).catch((err) => console.error('[push] Failed to notify new announcement:', err))
 
   return announcement
 }
@@ -545,8 +553,19 @@ export async function escalateAnnouncement(
   const ackedUserIds = new Set(acks.map((a) => a.userId))
   const pendingUsers = recipients.filter((r) => !ackedUserIds.has(r.userId))
 
-  // TODO: Trigger push notification to all pending ack users
-  // For now, create reminder records to track the escalation
+  // Push notification to all pending ack users (non-blocking)
+  const pendingUserIds = pendingUsers.map((u) => u.userId)
+  sendToUsers(
+    pendingUserIds,
+    'Reminder: Acknowledgement Required',
+    announcement.title,
+    {
+      type: 'announcement_escalation',
+      announcementId: announcement.id,
+    },
+  ).catch((err) => console.error('[push] Failed to notify escalation:', err))
+
+  // Create reminder records to track the escalation
   for (const user of pendingUsers) {
     await db.insert(announcementReminders).values({
       announcementId,

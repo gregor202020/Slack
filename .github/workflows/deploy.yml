@@ -1,0 +1,71 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy API to staging
+        run: |
+          echo "TODO: Deploy API to staging environment"
+          echo "Image: ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }}"
+          # Add your deployment commands here (e.g., kubectl, docker compose, railway, fly.io)
+
+      - name: Deploy Web to staging
+        run: |
+          echo "TODO: Deploy Web to staging environment"
+          echo "Image: ghcr.io/${{ github.repository }}/web:${{ github.event.workflow_run.head_sha }}"
+
+      - name: Run database migrations
+        run: |
+          echo "TODO: Run migrations against staging database"
+
+      - name: Health check
+        run: |
+          echo "TODO: Verify staging deployment health"
+          # curl -f https://staging-api.thesmoker.app/health || exit 1
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy API to production
+        run: |
+          echo "TODO: Deploy API to production"
+          echo "Image: ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }}"
+
+      - name: Deploy Web to production
+        run: |
+          echo "TODO: Deploy Web to production"
+          echo "Image: ghcr.io/${{ github.repository }}/web:${{ github.event.workflow_run.head_sha }}"
+
+      - name: Run database migrations
+        run: |
+          echo "TODO: Run migrations against production database"
+
+      - name: Health check
+        run: |
+          echo "TODO: Verify production deployment health"
+
+      - name: Notify team
+        if: success()
+        run: |
+          echo "TODO: Send deployment notification (Slack/Discord webhook)"

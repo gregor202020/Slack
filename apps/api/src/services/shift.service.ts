@@ -13,6 +13,7 @@ import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '.
 import { shiftSwapLockedError } from '../lib/errors.js'
 import { logAudit } from '../lib/audit.js'
 import { emitToUser } from '../plugins/socket.js'
+import { notifyShiftUpdate } from './notification.service.js'
 
 // ---------------------------------------------------------------------------
 // 1. getMyShifts
@@ -217,6 +218,10 @@ export async function createShift(
 
   emitToUser(data.userId, 'shift:created', shift)
 
+  // Push notification (non-blocking)
+  notifyShiftUpdate({ id: shift.id, userId: data.userId, type: 'created' })
+    .catch((err) => console.error('[push] Failed to notify shift created:', err))
+
   return shift
 }
 
@@ -311,6 +316,10 @@ export async function updateShift(
 
   emitToUser(updated.userId, 'shift:updated', updated)
 
+  // Push notification (non-blocking)
+  notifyShiftUpdate({ id: shiftId, userId: updated.userId, type: 'updated' })
+    .catch((err) => console.error('[push] Failed to notify shift updated:', err))
+
   return updated
 }
 
@@ -348,6 +357,10 @@ export async function deleteShift(
   })
 
   emitToUser(existing.userId, 'shift:deleted', { shiftId })
+
+  // Push notification (non-blocking)
+  notifyShiftUpdate({ id: shiftId, userId: existing.userId, type: 'deleted' })
+    .catch((err) => console.error('[push] Failed to notify shift deleted:', err))
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +464,10 @@ export async function requestSwap(
   })
 
   emitToUser(data.targetUserId, 'shift:swap_requested', swap)
+
+  // Push notification (non-blocking)
+  notifyShiftUpdate({ id: swap.id, userId: data.targetUserId, type: 'swap_requested' })
+    .catch((err) => console.error('[push] Failed to notify swap requested:', err))
 
   return swap
 }
@@ -570,6 +587,10 @@ export async function acceptSwap(
   })
 
   emitToUser(swap.requesterUserId, 'shift:swap_accepted', swap)
+
+  // Push notification (non-blocking)
+  notifyShiftUpdate({ id: swap.id, userId: swap.requesterUserId, type: 'swap_accepted' })
+    .catch((err) => console.error('[push] Failed to notify swap accepted:', err))
 }
 
 // ---------------------------------------------------------------------------
@@ -628,6 +649,10 @@ export async function declineSwap(
   })
 
   emitToUser(swap.requesterUserId, 'shift:swap_declined', swap)
+
+  // Push notification (non-blocking)
+  notifyShiftUpdate({ id: swap.id, userId: swap.requesterUserId, type: 'swap_declined' })
+    .catch((err) => console.error('[push] Failed to notify swap declined:', err))
 }
 
 // ---------------------------------------------------------------------------

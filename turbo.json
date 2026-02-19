@@ -13,6 +13,13 @@
     "lint": {
       "dependsOn": ["^build"]
     },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "db:generate": {
       "cache": false
     },

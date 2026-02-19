@@ -12,11 +12,15 @@
 import 'dotenv/config';
 import { loadConfig } from './lib/config.js';
 import { buildApp } from './app.js';
-import { initializeSocketIO } from './plugins/socket.js';
+import { initializeSocketIO } from './plugins/socket.js'
+import { initFirebase } from './plugins/firebase.js'
 
 async function main(): Promise<void> {
   // Load and validate config first
   const config = loadConfig();
+
+  // Initialize Firebase Admin SDK for push notifications
+  initFirebase();
 
   // Build the Fastify app
   const app = await buildApp();

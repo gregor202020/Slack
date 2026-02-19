@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "The Smoker",
+    "slug": "the-smoker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "the-smoker",
+    "splash": {
+      "backgroundColor": "#0170B9"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thirdwavebbq.thesmoker"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0170B9"
+      },
+      "package": "com.thirdwavebbq.thesmoker"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0170B9"
+        }
+      ]
+    ]
+  }
+}

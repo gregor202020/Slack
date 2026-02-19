@@ -25,6 +25,7 @@ import { vaultRoutes } from './admin/vault/index.js';
 import { apiKeyRoutes } from './api-keys/index.js';
 import { maintenanceRoutes } from './maintenance/index.js';
 import { shiftRoutes } from './shifts/index.js';
+import { notificationRoutes } from './notifications/index.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(authRoutes, { prefix: '/api/auth' });
@@ -47,4 +48,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(apiKeyRoutes, { prefix: '/api/admin/api-keys' });
   await app.register(maintenanceRoutes, { prefix: '/api/maintenance' });
   await app.register(shiftRoutes, { prefix: '/api/shifts' });
+  await app.register(notificationRoutes, { prefix: '/api/notifications' });
 }

@@ -98,3 +98,6 @@ export {
 
 // Data Exports
 export { dataExports, dataExportsRelations } from './data-exports';
+
+// Device Tokens (FCM Push Notifications)
+export { deviceTokens, deviceTokensRelations } from './device-tokens';

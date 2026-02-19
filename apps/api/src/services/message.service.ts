@@ -5,7 +5,7 @@
  * emoji reactions, and mention extraction.
  */
 
-import { eq, and, desc, asc, count, isNull, lt, sql } from 'drizzle-orm'
+import { eq, and, desc, asc, count, isNull, lt, ne, sql } from 'drizzle-orm'
 import {
   db,
   messages,
@@ -27,6 +27,7 @@ import { sanitizeHtmlContent, stripNullBytes } from '../lib/sanitize.js'
 import { sha256 } from '../lib/crypto.js'
 import { isSuperAdmin } from '../middleware/roles.js'
 import { emitToChannel, emitToDm } from '../plugins/socket.js'
+import { notifyNewMessage, notifyNewDM } from './notification.service.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -201,6 +202,10 @@ export async function sendChannelMessage(
 
   emitToChannel(channelId, 'message:new', message)
 
+  // Push notification to offline channel members (non-blocking)
+  notifyNewMessage(channelId, userId, sanitizedBody)
+    .catch((err) => console.error('[push] Failed to notify channel message:', err))
+
   return message
 }
 
@@ -263,6 +268,19 @@ export async function sendDmMessage(
   await extractAndStoreMentions(message.id, sanitizedBody)
 
   emitToDm(dmId, 'message:new', message)
+
+  // Push notification to other DM members (non-blocking)
+  db
+    .select({ userId: dmMembers.userId })
+    .from(dmMembers)
+    .where(and(eq(dmMembers.dmId, dmId), ne(dmMembers.userId, userId)))
+    .then((otherMembers) => {
+      for (const member of otherMembers) {
+        notifyNewDM(userId, member.userId, sanitizedBody)
+          .catch((err) => console.error('[push] Failed to notify DM message:', err))
+      }
+    })
+    .catch((err) => console.error('[push] Failed to query DM members for push:', err))
 
   return message
 }
