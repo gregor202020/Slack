@@ -1,0 +1,70 @@
+/**
+ * Main entry point for the Smoker API server.
+ *
+ * - Loads environment variables via dotenv
+ * - Initializes config
+ * - Builds the Fastify app
+ * - Initializes Socket.io on the same server
+ * - Starts listening on PORT
+ * - Handles graceful shutdown (SIGTERM, SIGINT)
+ */
+
+import 'dotenv/config';
+import { loadConfig } from './lib/config.js';
+import { buildApp } from './app.js';
+import { initializeSocketIO } from './plugins/socket.js';
+
+async function main(): Promise<void> {
+  // Load and validate config first
+  const config = loadConfig();
+
+  // Build the Fastify app
+  const app = await buildApp();
+
+  // Start listening
+  await app.listen({ port: config.port, host: config.host });
+
+  // Initialize Socket.io on the underlying HTTP server
+  const httpServer = app.server;
+  initializeSocketIO(httpServer);
+
+  app.log.info(`Server listening on ${config.host}:${config.port}`);
+  app.log.info(`Environment: ${config.nodeEnv}`);
+
+  // --- Graceful shutdown ---
+  const shutdown = async (signal: string) => {
+    app.log.info(`Received ${signal}. Starting graceful shutdown...`);
+
+    try {
+      // Close the Fastify server (stops accepting new connections)
+      await app.close();
+      app.log.info('Server closed successfully');
+      process.exit(0);
+    } catch (err) {
+      app.log.error(err, 'Error during shutdown');
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Handle uncaught errors
+  process.on('unhandledRejection', (reason) => {
+    app.log.error(reason, 'Unhandled rejection');
+  });
+
+  process.on('uncaughtException', (error) => {
+    app.log.fatal(error, 'Uncaught exception');
+    process.exit(1);
+  });
+}
+
+main().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
+
+// Export for testing
+export { buildApp };

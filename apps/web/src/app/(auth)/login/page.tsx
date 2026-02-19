@@ -1,0 +1,65 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuthStore } from '@/stores/auth'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+
+export default function LoginPage() {
+  const router = useRouter()
+  const requestOtp = useAuthStore((s) => s.requestOtp)
+  const [phone, setPhone] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    try {
+      await requestOtp(phone)
+      // Store phone in sessionStorage for the verify page
+      sessionStorage.setItem('otpPhone', phone)
+      router.push('/verify')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-lg bg-smoke-800 border border-smoke-600 p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-smoke-100">Sign in</h2>
+          <p className="text-sm text-smoke-400 mt-1">
+            Enter your phone number to receive a verification code.
+          </p>
+        </div>
+
+        <Input
+          id="phone"
+          type="tel"
+          label="Phone number"
+          placeholder="+1 (555) 123-4567"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          error={error}
+          required
+          autoFocus
+        />
+
+        <Button type="submit" className="w-full" isLoading={isLoading}>
+          Send code
+        </Button>
+      </div>
+
+      <p className="text-center text-xs text-smoke-500">
+        You must have an active invite to sign in.
+      </p>
+    </form>
+  )
+}

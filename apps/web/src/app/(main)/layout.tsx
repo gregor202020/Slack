@@ -1,0 +1,56 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
+import { useSocket } from '@/hooks/useSocket'
+import { Sidebar } from '@/components/layout/Sidebar'
+import { Header } from '@/components/layout/Header'
+import { Spinner } from '@/components/ui/Spinner'
+
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const { isAuthenticated, isLoading, fetchMe } = useAuthStore()
+  const fetchChannels = useChatStore((s) => s.fetchChannels)
+  const fetchDms = useChatStore((s) => s.fetchDms)
+
+  useSocket()
+
+  useEffect(() => {
+    fetchMe()
+  }, [fetchMe])
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login')
+    }
+  }, [isLoading, isAuthenticated, router])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchChannels()
+      fetchDms()
+    }
+  }, [isAuthenticated, fetchChannels, fetchDms])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-smoke-900">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) return null
+
+  return (
+    <div className="flex h-screen bg-smoke-900">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-w-0">
+        <Header />
+        <main className="flex-1 overflow-hidden">{children}</main>
+      </div>
+    </div>
+  )
+}

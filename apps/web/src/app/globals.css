@@ -1,0 +1,60 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Brand */
+  --color-brand: #0170B9;
+  --color-brand-hover: #015A94;
+  --color-brand-light: #E6F2FA;
+
+  /* Accent — Ember Orange */
+  --color-accent: #E8652B;
+  --color-accent-hover: #D05520;
+  --color-accent-light: #FDF0EB;
+
+  /* Smoke palette (warm charcoal) */
+  --color-smoke-900: #1A1A1E;
+  --color-smoke-800: #222228;
+  --color-smoke-700: #2C2C34;
+  --color-smoke-600: #3A3A44;
+  --color-smoke-500: #4B4F58;
+  --color-smoke-400: #6B7080;
+  --color-smoke-300: #9298A5;
+  --color-smoke-200: #C5C9D2;
+  --color-smoke-100: #E8EAEF;
+  --color-smoke-50: #F5F5F7;
+
+  /* Semantic */
+  --color-success: #2EA043;
+  --color-warning: #D4930D;
+  --color-error: #CF222E;
+  --color-info: #0170B9;
+
+  /* Presence */
+  --color-online: #2EA043;
+  --color-offline: #6B7080;
+
+  /* Font family */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-smoke-900);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-smoke-600);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-smoke-500);
+}
+
+/* Global dark mode defaults */
+body {
+  background-color: var(--color-smoke-900);
+  color: #EAEAEC;
+}

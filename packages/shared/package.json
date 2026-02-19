@@ -1,0 +1,28 @@
+{
+  "name": "@smoker/shared",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./validation/schemas": "./dist/validation/schemas.js",
+    "./constants/limits": "./dist/constants/limits.js",
+    "./constants/rate-limits": "./dist/constants/rate-limits.js",
+    "./constants/blocked-extensions": "./dist/constants/blocked-extensions.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
