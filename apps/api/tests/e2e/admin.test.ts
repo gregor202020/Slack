@@ -382,4 +382,111 @@ describe('Admin API', () => {
       expect(response.statusCode).toBe(403)
     })
   })
+
+  // -------------------------------------------------------------------------
+  // Privilege escalation prevention
+  // -------------------------------------------------------------------------
+
+  describe('Privilege escalation prevention', () => {
+    beforeEach(async () => {
+      await cleanupTestData()
+    })
+
+    it('should prevent admin from promoting a user to super_admin', async () => {
+      const admin = await createTestUser({ orgRole: 'admin' })
+      const target = await createTestUser({ orgRole: 'basic' })
+      const session = await createTestSession(admin.id)
+      const token = generateTestToken(admin.id, session.id)
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/users/${target.id}/role`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { role: 'super_admin' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const body = response.json()
+      expect(body.error.code).toBe('INSUFFICIENT_ROLE')
+    })
+
+    it('should prevent admin from promoting a user to admin (same level)', async () => {
+      const admin = await createTestUser({ orgRole: 'admin' })
+      const target = await createTestUser({ orgRole: 'basic' })
+      const session = await createTestSession(admin.id)
+      const token = generateTestToken(admin.id, session.id)
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/users/${target.id}/role`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { role: 'admin' },
+      })
+
+      // canManageRole requires actorLevel > targetLevel, so admin (2) cannot assign admin (2)
+      expect(response.statusCode).toBe(403)
+      const body = response.json()
+      expect(body.error.code).toBe('INSUFFICIENT_ROLE')
+    })
+
+    it('should allow super_admin to promote a user to admin', async () => {
+      const superAdmin = await createTestUser({ orgRole: 'super_admin' })
+      const target = await createTestUser({ orgRole: 'basic' })
+      const session = await createTestSession(superAdmin.id)
+      const token = generateTestToken(superAdmin.id, session.id)
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/users/${target.id}/role`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { role: 'admin' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json()
+      expect(body.orgRole).toBe('admin')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Self-action prevention
+  // -------------------------------------------------------------------------
+
+  describe('Self-action prevention', () => {
+    beforeEach(async () => {
+      await cleanupTestData()
+    })
+
+    it('should prevent admin from suspending themselves', async () => {
+      const admin = await createTestUser({ orgRole: 'admin' })
+      const session = await createTestSession(admin.id)
+      const token = generateTestToken(admin.id, session.id)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/users/${admin.id}/suspend`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const body = response.json()
+      expect(body.error.code).toBe('CANNOT_SELF_SUSPEND')
+    })
+
+    it('should prevent admin from deactivating themselves', async () => {
+      const admin = await createTestUser({ orgRole: 'admin' })
+      const session = await createTestSession(admin.id)
+      const token = generateTestToken(admin.id, session.id)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/users/${admin.id}/deactivate`,
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const body = response.json()
+      expect(body.error.code).toBe('CANNOT_SELF_DEACTIVATE')
+    })
+  })
 })

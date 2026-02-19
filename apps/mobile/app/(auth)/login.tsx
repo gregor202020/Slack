@@ -40,10 +40,10 @@ export default function LoginScreen() {
         pathname: '/(auth)/verify',
         params: { phone: fullPhone },
       })
-    } catch {
+    } catch (err) {
       Alert.alert(
         'Error',
-        error ?? 'Failed to send verification code. Please try again.',
+        err instanceof Error ? err.message : 'Failed to send verification code. Please try again.',
       )
     }
   }

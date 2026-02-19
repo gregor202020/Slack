@@ -65,6 +65,11 @@ export async function api<T = unknown>(
     throw new ApiError(res.status, body.error?.code || 'UNKNOWN', body.error?.message || res.statusText)
   }
 
+  // 204 No Content — nothing to parse
+  if (res.status === 204) {
+    return {} as T
+  }
+
   return res.json() as Promise<T>
 }
 

@@ -468,8 +468,20 @@ export async function deleteChannel(
 // 8. listChannelMembers
 // ---------------------------------------------------------------------------
 
-export async function listChannelMembers(channelId: string) {
-  return db
+export async function listChannelMembers(
+  channelId: string,
+  cursor?: string,
+  limit = 100,
+) {
+  const pageLimit = Math.min(limit, 100)
+
+  const conditions = [eq(channelMembers.channelId, channelId)]
+
+  if (cursor) {
+    conditions.push(sql`${channelMembers.joinedAt} < ${cursor}`)
+  }
+
+  const rows = await db
     .select({
       userId: channelMembers.userId,
       fullName: users.fullName,
@@ -479,7 +491,17 @@ export async function listChannelMembers(channelId: string) {
     })
     .from(channelMembers)
     .innerJoin(users, eq(channelMembers.userId, users.id))
-    .where(eq(channelMembers.channelId, channelId))
+    .where(and(...conditions))
+    .orderBy(desc(channelMembers.joinedAt))
+    .limit(pageLimit + 1)
+
+  const hasMore = rows.length > pageLimit
+  const results = hasMore ? rows.slice(0, pageLimit) : rows
+
+  return {
+    members: results,
+    nextCursor: hasMore ? results[results.length - 1]?.joinedAt?.toISOString() : null,
+  }
 }
 
 // ---------------------------------------------------------------------------

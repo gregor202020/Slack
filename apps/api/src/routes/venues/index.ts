@@ -10,7 +10,7 @@ import { authenticate } from '../../middleware/auth.js'
 import { requireRole, requireVenueRole } from '../../middleware/roles.js'
 import { validateBody } from '../../middleware/validate.js'
 import { extractAuditContext } from '../../lib/audit.js'
-import { createVenueSchema, updateVenueSchema } from '@smoker/shared'
+import { createVenueSchema, updateVenueSchema, paginationQuerySchema } from '@smoker/shared'
 import {
   listVenues,
   createVenue,
@@ -138,8 +138,11 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { venueId } = request.params as { venueId: string }
-      const members = await listVenueMembers(venueId)
-      return reply.status(200).send(members)
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listVenueMembers(venueId, cursor, limit)
+      return reply.status(200).send(result)
     },
   })
 

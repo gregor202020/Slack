@@ -308,6 +308,55 @@ describe('Auth API', () => {
       })
 
       expect(response.statusCode).toBe(401)
+      const body = response.json()
+      expect(body.error.code).toBe('TOKEN_REVOKED')
+    })
+
+    it('should reject a suspended user with 403', async () => {
+      const user = await createTestUser({ status: 'suspended' })
+      const session = await createTestSession(user.id)
+      const token = generateTestToken(user.id, session.id)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/users/me',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const body = response.json()
+      expect(body.error.code).toBe('USER_SUSPENDED')
+    })
+
+    it('should reject a deactivated user with 403', async () => {
+      const user = await createTestUser({ status: 'deactivated' })
+      const session = await createTestSession(user.id)
+      const token = generateTestToken(user.id, session.id)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/users/me',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const body = response.json()
+      expect(body.error.code).toBe('USER_DEACTIVATED')
+    })
+
+    it('should return error code MISSING_TOKEN when not authenticated', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/users/me',
+      })
+
+      expect(response.statusCode).toBe(401)
+      const body = response.json()
+      expect(body.error.code).toBe('MISSING_TOKEN')
     })
   })
 })

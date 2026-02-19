@@ -10,7 +10,7 @@ import { authenticate } from '../../middleware/auth.js'
 import { requireRole, requireChannelMembership } from '../../middleware/roles.js'
 import { validateBody } from '../../middleware/validate.js'
 import { extractAuditContext } from '../../lib/audit.js'
-import { createChannelSchema, updateChannelSchema } from '@smoker/shared'
+import { createChannelSchema, updateChannelSchema, paginationQuerySchema } from '@smoker/shared'
 import {
   listChannels,
   createChannel,
@@ -31,6 +31,11 @@ import {
 // ---------------------------------------------------------------------------
 // Inline Zod schemas
 // ---------------------------------------------------------------------------
+
+const channelListQuerySchema = paginationQuerySchema.extend({
+  scope: z.enum(['org', 'venue']).optional(),
+  venueId: z.string().uuid('Invalid venue ID').optional(),
+})
 
 const addMembersSchema = z.object({
   userIds: z.array(z.string().uuid()).min(1).max(50),
@@ -55,17 +60,14 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id, orgRole } = request.user!
-      const query = request.query as {
-        scope?: string
-        venueId?: string
-        cursor?: string
-        limit?: string
-      }
+      const parsed = channelListQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { scope, venueId, cursor, limit } = parsed.data
       const result = await listChannels(id, orgRole, {
-        scope: query.scope,
-        venueId: query.venueId,
-        cursor: query.cursor,
-        limit: query.limit ? Number(query.limit) : undefined,
+        scope,
+        venueId,
+        cursor,
+        limit,
       })
       return reply.status(200).send(result)
     },
@@ -167,7 +169,10 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
-      const result = await listChannelMembers(channelId)
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listChannelMembers(channelId, cursor, limit)
       return reply.status(200).send(result)
     },
   })

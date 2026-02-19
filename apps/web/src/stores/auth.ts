@@ -23,6 +23,8 @@ interface AuthState {
   logout: () => Promise<void>
 }
 
+let fetchMePromise: Promise<void> | null = null
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -52,28 +54,34 @@ export const useAuthStore = create<AuthState>((set) => ({
     return { needsOnboarding: data.needsOnboarding }
   },
 
-  fetchMe: async () => {
-    try {
-      // Try refresh first
-      const refreshRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/auth/refresh`,
-        { method: 'POST', credentials: 'include' },
-      )
+  fetchMe: () => {
+    if (fetchMePromise) return fetchMePromise
+    fetchMePromise = (async () => {
+      try {
+        // Try refresh first
+        const refreshRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/auth/refresh`,
+          { method: 'POST', credentials: 'include' },
+        )
 
-      if (!refreshRes.ok) {
+        if (!refreshRes.ok) {
+          set({ user: null, isAuthenticated: false, isLoading: false })
+          return
+        }
+
+        const refreshData = await refreshRes.json()
+        setAccessToken(refreshData.accessToken)
+
+        const user = await api<User>('/api/users/me')
+        set({ user, isAuthenticated: true, isLoading: false })
+        connectSocket()
+      } catch {
         set({ user: null, isAuthenticated: false, isLoading: false })
-        return
       }
-
-      const refreshData = await refreshRes.json()
-      setAccessToken(refreshData.accessToken)
-
-      const user = await api<User>('/api/users/me')
-      set({ user, isAuthenticated: true, isLoading: false })
-      connectSocket()
-    } catch {
-      set({ user: null, isAuthenticated: false, isLoading: false })
-    }
+    })().finally(() => {
+      fetchMePromise = null
+    })
+    return fetchMePromise
   },
 
   logout: async () => {

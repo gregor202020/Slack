@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint mobile app
+        run: cd apps/mobile && npx eslint .
+
       - name: Type check mobile app
         run: cd apps/mobile && npx tsc --noEmit
 

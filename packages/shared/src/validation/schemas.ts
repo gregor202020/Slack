@@ -30,7 +30,7 @@ const CHANNEL_NAME_REGEX = /^[a-z0-9_-]+$/;
 const API_KEY_NAME_REGEX = /^[a-zA-Z0-9_ -]+$/;
 
 /** Australian E.164 phone (or generic international). Loose check — full validation server-side. */
-const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
+export const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 
 // ---------------------------------------------------------------------------
 // Auth schemas
@@ -100,7 +100,10 @@ export const createChannelSchema = z.object({
   type: z.enum(['public', 'private']),
   scope: z.enum(['org', 'venue']),
   venueId: z.string().uuid('Invalid venue ID').optional(),
-});
+}).refine(
+  (data) => data.scope !== 'venue' || !!data.venueId,
+  { message: 'venueId is required when scope is venue', path: ['venueId'] },
+)
 
 export const updateChannelSchema = z.object({
   name: z
@@ -159,7 +162,13 @@ export const createAnnouncementSchema = z.object({
   title: z.string().min(1, 'Announcement title is required').max(MAX_ANNOUNCEMENT_TITLE_LENGTH).trim(),
   body: z.string().min(1, 'Announcement body is required').max(MAX_ANNOUNCEMENT_BODY_LENGTH),
   ackRequired: z.boolean(),
-});
+}).refine(
+  (data) => data.scope !== 'venue' || !!data.venueId,
+  { message: 'venueId is required when scope is venue', path: ['venueId'] },
+).refine(
+  (data) => data.scope !== 'channel' || !!data.channelId,
+  { message: 'channelId is required when scope is channel', path: ['channelId'] },
+)
 
 // ---------------------------------------------------------------------------
 // Maintenance schemas
@@ -260,4 +269,10 @@ export const bulkDeleteExecuteSchema = z.object({
 export const cursorPaginationSchema = z.object({
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(25),
-});
+})
+
+/** Query-string pagination — coerces `limit` from string and validates `cursor` as ISO datetime. */
+export const paginationQuerySchema = z.object({
+  cursor: z.string().datetime().optional(),
+  limit: z.coerce.number().int().positive().max(100).default(25),
+})

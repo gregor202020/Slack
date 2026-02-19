@@ -62,10 +62,10 @@ export default function VerifyScreen() {
     try {
       await verifyOtp(phone, codeValue)
       router.replace('/(main)/(channels)')
-    } catch {
+    } catch (err) {
       Alert.alert(
         'Verification Failed',
-        error ?? 'Invalid code. Please try again.',
+        err instanceof Error ? err.message : 'Invalid code. Please try again.',
       )
       setCode('')
       inputRef.current?.focus()

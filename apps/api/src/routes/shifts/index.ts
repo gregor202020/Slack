@@ -10,7 +10,7 @@ import { authenticate } from '../../middleware/auth.js'
 import { requireRole, requireVenueRole } from '../../middleware/roles.js'
 import { validateBody } from '../../middleware/validate.js'
 import { extractAuditContext } from '../../lib/audit.js'
-import { createShiftSchema, requestSwapSchema } from '@smoker/shared'
+import { createShiftSchema, requestSwapSchema, paginationQuerySchema } from '@smoker/shared'
 import {
   getMyShifts,
   getVenueRoster,
@@ -30,6 +30,16 @@ import {
 // Inline Zod schemas
 // ---------------------------------------------------------------------------
 
+const shiftListQuerySchema = paginationQuerySchema.extend({
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+})
+
+const venueRosterQuerySchema = z.object({
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+})
+
 const updateShiftSchema = z.object({
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
@@ -48,17 +58,14 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id } = request.user!
-      const query = request.query as {
-        startDate?: string
-        endDate?: string
-        cursor?: string
-        limit?: string
-      }
+      const parsed = shiftListQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { startDate, endDate, cursor, limit } = parsed.data
       const result = await getMyShifts(id, {
-        startDate: query.startDate,
-        endDate: query.endDate,
-        cursor: query.cursor,
-        limit: query.limit ? Number(query.limit) : undefined,
+        startDate,
+        endDate,
+        cursor,
+        limit,
       })
       return reply.status(200).send(result)
     },
@@ -69,13 +76,12 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { venueId } = request.params as { venueId: string }
-      const query = request.query as {
-        startDate?: string
-        endDate?: string
-      }
+      const parsed = venueRosterQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { startDate, endDate } = parsed.data
       const result = await getVenueRoster(venueId, {
-        startDate: query.startDate,
-        endDate: query.endDate,
+        startDate,
+        endDate,
       })
       return reply.status(200).send(result)
     },
@@ -201,12 +207,10 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id } = request.user!
-      const query = request.query as { cursor?: string; limit?: string }
-      const result = await listMySwaps(
-        id,
-        query.cursor,
-        query.limit ? Number(query.limit) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listMySwaps(id, cursor, limit)
       return reply.status(200).send(result)
     },
   })
@@ -216,12 +220,10 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate, requireVenueRole('venueId', 'admin', 'super_admin')],
     handler: async (request, reply) => {
       const { venueId } = request.params as { venueId: string }
-      const query = request.query as { cursor?: string; limit?: string }
-      const result = await listVenueSwaps(
-        venueId,
-        query.cursor,
-        query.limit ? Number(query.limit) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listVenueSwaps(venueId, cursor, limit)
       return reply.status(200).send(result)
     },
   })

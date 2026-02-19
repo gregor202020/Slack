@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PHONE_REGEX } from '@smoker/shared'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,6 +17,12 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (!PHONE_REGEX.test(phone)) {
+      setError('Enter a valid phone number in international format (e.g. +15551234567)')
+      return
+    }
+
     setIsLoading(true)
 
     try {

@@ -1,17 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/Button'
 
+const RESEND_COOLDOWN = 60
+
 export default function VerifyPage() {
   const router = useRouter()
   const verifyOtp = useAuthStore((s) => s.verifyOtp)
+  const requestOtp = useAuthStore((s) => s.requestOtp)
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [phone, setPhone] = useState('')
+  const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN)
+  const [isResending, setIsResending] = useState(false)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
@@ -23,6 +28,30 @@ export default function VerifyPage() {
     setPhone(stored)
     inputRefs.current[0]?.focus()
   }, [router])
+
+  // Countdown timer for resend
+  useEffect(() => {
+    if (resendTimer <= 0) return
+    const interval = setInterval(() => {
+      setResendTimer((prev) => prev - 1)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [resendTimer])
+
+  const handleResend = useCallback(async () => {
+    if (resendTimer > 0 || !phone || isResending) return
+    setIsResending(true)
+    try {
+      await requestOtp(phone)
+      setResendTimer(RESEND_COOLDOWN)
+      setCode(['', '', '', '', '', ''])
+      setError('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend code.')
+    } finally {
+      setIsResending(false)
+    }
+  }, [resendTimer, phone, isResending, requestOtp])
 
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) value = value.slice(-1)
@@ -111,6 +140,22 @@ export default function VerifyPage() {
         >
           Verify
         </Button>
+      </div>
+
+      <div className="text-center text-sm">
+        {resendTimer > 0 ? (
+          <p className="text-smoke-400">
+            Resend code in {resendTimer}s
+          </p>
+        ) : (
+          <button
+            onClick={handleResend}
+            disabled={isResending}
+            className="text-brand hover:text-brand-hover disabled:opacity-50 transition-colors"
+          >
+            {isResending ? 'Sending...' : 'Resend code'}
+          </button>
+        )}
       </div>
 
       <button

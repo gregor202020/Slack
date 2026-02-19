@@ -94,7 +94,8 @@ export async function buildApp(): Promise<FastifyInstance> {
         error: {
           code: error.code,
           message: error.message,
-          details: error.details,
+          // Strip details in production to avoid leaking internals (Finding 4.1)
+          ...(config.isDevelopment && error.details ? { details: error.details } : {}),
           requestId: request.id,
         },
       });

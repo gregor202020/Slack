@@ -79,6 +79,8 @@ export async function getMyShifts(
 // 2. getVenueRoster
 // ---------------------------------------------------------------------------
 
+const MAX_ROSTER_RANGE_DAYS = 31
+
 export async function getVenueRoster(
   venueId: string,
   options: {
@@ -87,6 +89,20 @@ export async function getVenueRoster(
   } = {},
 ) {
   const { startDate, endDate } = options
+
+  // Enforce maximum date range of 31 days (Finding Q-28)
+  if (startDate && endDate) {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffMs = end.getTime() - start.getTime()
+    const diffDays = diffMs / (1000 * 60 * 60 * 24)
+    if (diffDays > MAX_ROSTER_RANGE_DAYS) {
+      throw new ValidationError(
+        `Date range cannot exceed ${MAX_ROSTER_RANGE_DAYS} days`,
+        'DATE_RANGE_TOO_LARGE',
+      )
+    }
+  }
 
   const conditions = [eq(shifts.venueId, venueId)]
 

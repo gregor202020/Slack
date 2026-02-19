@@ -79,29 +79,35 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
   const contentHash = sha256(contentPayload)
 
   try {
-    // Fetch the hash of the last audit log entry for the hash chain
-    const [lastEntry] = await db
-      .select({ contentHash: auditLogs.contentHash })
-      .from(auditLogs)
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(1)
-    const prevHash = lastEntry?.contentHash ?? 'genesis'
+    // Wrap read-previous-hash + insert in a transaction to prevent
+    // concurrent entries from reading the same prevHash (Finding 5.2).
+    let chainHash: string | undefined
 
-    // Compute the chain hash (hash of prevHash + contentHash)
-    const chainHash = sha256(`${prevHash}:${contentHash}`)
+    await db.transaction(async (tx) => {
+      // Fetch the hash of the last audit log entry for the hash chain
+      const [lastEntry] = await tx
+        .select({ contentHash: auditLogs.contentHash })
+        .from(auditLogs)
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(1)
+      const prevHash = lastEntry?.contentHash ?? 'genesis'
 
-    // Insert into audit_logs table
-    await db.insert(auditLogs).values({
-      actorId: actorId ?? undefined,
-      actorType,
-      action,
-      targetType: targetType ?? undefined,
-      targetId: targetId ?? undefined,
-      metadata: metadata ?? undefined,
-      ipAddress: ipAddress ?? undefined,
-      userAgent: userAgent ?? undefined,
-      contentHash,
-      prevHash,
+      // Compute the chain hash (hash of prevHash + contentHash)
+      chainHash = sha256(`${prevHash}:${contentHash}`)
+
+      // Insert into audit_logs table
+      await tx.insert(auditLogs).values({
+        actorId: actorId ?? undefined,
+        actorType,
+        action,
+        targetType: targetType ?? undefined,
+        targetId: targetId ?? undefined,
+        metadata: metadata ?? undefined,
+        ipAddress: ipAddress ?? undefined,
+        userAgent: userAgent ?? undefined,
+        contentHash,
+        prevHash,
+      })
     })
 
     // Log to external logger for critical events

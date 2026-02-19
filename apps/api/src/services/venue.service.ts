@@ -308,8 +308,20 @@ export async function unarchiveVenue(
 // 7. listVenueMembers
 // ---------------------------------------------------------------------------
 
-export async function listVenueMembers(venueId: string) {
-  return db
+export async function listVenueMembers(
+  venueId: string,
+  cursor?: string,
+  limit = 100,
+) {
+  const pageLimit = Math.min(limit, 100)
+
+  const conditions = [eq(userVenues.venueId, venueId)]
+
+  if (cursor) {
+    conditions.push(sql`${userVenues.joinedAt} < ${cursor}`)
+  }
+
+  const rows = await db
     .select({
       userId: userVenues.userId,
       fullName: users.fullName,
@@ -319,7 +331,17 @@ export async function listVenueMembers(venueId: string) {
     })
     .from(userVenues)
     .innerJoin(users, eq(userVenues.userId, users.id))
-    .where(eq(userVenues.venueId, venueId))
+    .where(and(...conditions))
+    .orderBy(desc(userVenues.joinedAt))
+    .limit(pageLimit + 1)
+
+  const hasMore = rows.length > pageLimit
+  const results = hasMore ? rows.slice(0, pageLimit) : rows
+
+  return {
+    members: results,
+    nextCursor: hasMore ? results[results.length - 1]?.joinedAt?.toISOString() : null,
+  }
 }
 
 // ---------------------------------------------------------------------------

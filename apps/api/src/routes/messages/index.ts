@@ -12,7 +12,7 @@ import { requireChannelMembership, requireDmMembership } from '../../middleware/
 import { validateBody } from '../../middleware/validate.js'
 import { extractAuditContext } from '../../lib/audit.js'
 import { NotFoundError, ForbiddenError } from '../../lib/errors.js'
-import { sendMessageSchema, editMessageSchema } from '@smoker/shared'
+import { sendMessageSchema, editMessageSchema, paginationQuerySchema } from '@smoker/shared'
 import { db, messages, channelMembers, dmMembers } from '@smoker/db'
 import {
   getChannelMessages,
@@ -80,12 +80,10 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
-      const { cursor, limit } = request.query as { cursor?: string; limit?: string }
-      const result = await getChannelMessages(
-        channelId,
-        cursor,
-        limit ? parseInt(limit, 10) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await getChannelMessages(channelId, cursor, limit)
       return reply.status(200).send(result)
     },
   })
@@ -146,12 +144,10 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate, requireDmMembership('dmId')],
     handler: async (request, reply) => {
       const { dmId } = request.params as { dmId: string }
-      const { cursor, limit } = request.query as { cursor?: string; limit?: string }
-      const result = await getDmMessages(
-        dmId,
-        cursor,
-        limit ? parseInt(limit, 10) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await getDmMessages(dmId, cursor, limit)
       return reply.status(200).send(result)
     },
   })
@@ -199,12 +195,10 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request, reply) => {
       const { messageId } = request.params as { messageId: string }
       await assertMessageAccess(messageId, request.user!.id)
-      const { cursor, limit } = request.query as { cursor?: string; limit?: string }
-      const result = await getThreadReplies(
-        messageId,
-        cursor,
-        limit ? parseInt(limit, 10) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await getThreadReplies(messageId, cursor, limit)
       return reply.status(200).send(result)
     },
   })

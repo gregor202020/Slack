@@ -14,6 +14,9 @@ export default function ChannelPage() {
     if (params.channelId) {
       setActiveChannel(params.channelId)
     }
+    return () => {
+      setActiveChannel(null)
+    }
   }, [params.channelId, setActiveChannel])
 
   return (

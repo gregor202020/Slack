@@ -19,25 +19,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy API to staging
-        run: |
-          echo "TODO: Deploy API to staging environment"
-          echo "Image: ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }}"
-          # Add your deployment commands here (e.g., kubectl, docker compose, railway, fly.io)
-
-      - name: Deploy Web to staging
-        run: |
-          echo "TODO: Deploy Web to staging environment"
-          echo "Image: ghcr.io/${{ github.repository }}/web:${{ github.event.workflow_run.head_sha }}"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run database migrations
         run: |
-          echo "TODO: Run migrations against staging database"
+          docker pull ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }}
+          docker run --rm \
+            -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
+            ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }} \
+            npm run db:migrate
+
+      - name: Deploy API
+        run: |
+          echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" >> .env
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d api
+
+      - name: Deploy Web
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d web
 
       - name: Health check
         run: |
-          echo "TODO: Verify staging deployment health"
-          # curl -f https://staging-api.thesmoker.app/health || exit 1
+          for i in $(seq 1 30); do
+            if curl -sf ${{ vars.API_URL }}/health > /dev/null 2>&1; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i/30 failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed after 30 attempts"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Rolling back to previous deployment..."
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --force-recreate api web
 
   deploy-production:
     name: Deploy to Production
@@ -47,25 +70,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy API to production
-        run: |
-          echo "TODO: Deploy API to production"
-          echo "Image: ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }}"
-
-      - name: Deploy Web to production
-        run: |
-          echo "TODO: Deploy Web to production"
-          echo "Image: ghcr.io/${{ github.repository }}/web:${{ github.event.workflow_run.head_sha }}"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run database migrations
         run: |
-          echo "TODO: Run migrations against production database"
+          docker pull ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }}
+          docker run --rm \
+            -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
+            ghcr.io/${{ github.repository }}/api:${{ github.event.workflow_run.head_sha }} \
+            npm run db:migrate
+
+      - name: Deploy API
+        run: |
+          echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" >> .env
+          docker compose -f docker-compose.yml -f docker-compose.production.yml up -d api
+
+      - name: Deploy Web
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.production.yml up -d web
 
       - name: Health check
         run: |
-          echo "TODO: Verify production deployment health"
+          for i in $(seq 1 30); do
+            if curl -sf ${{ vars.API_URL }}/health > /dev/null 2>&1; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i/30 failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed after 30 attempts"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Rolling back to previous deployment..."
+          docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --force-recreate api web
 
       - name: Notify team
         if: success()
         run: |
-          echo "TODO: Send deployment notification (Slack/Discord webhook)"
+          curl -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"text":"🚀 The Smoker deployed to production: ${{ github.event.workflow_run.head_sha }}"}'

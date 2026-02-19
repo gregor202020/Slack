@@ -44,8 +44,14 @@ interface ChatState {
   fetchDms: () => Promise<void>
   fetchMessages: (channelId?: string, dmId?: string) => Promise<void>
   sendMessage: (body: string) => Promise<void>
-  setActiveChannel: (channelId: string) => void
+  setActiveChannel: (channelId: string | null) => void
   setActiveDm: (dmId: string) => void
+}
+
+const typingTimeouts: Record<string, ReturnType<typeof setTimeout>> = {}
+
+function getTypingKey(roomKey: string, userId: string) {
+  return `${roomKey}:${userId}`
 }
 
 export function setupSocketListeners(socket: Socket): () => void {
@@ -74,23 +80,45 @@ export function setupSocketListeners(socket: Socket): () => void {
     })
   }
 
-  const onTypingStart = (data: { userId: string; channelId?: string; dmId?: string }) => {
-    const roomKey = data.channelId || data.dmId || ''
-    const state = get()
-    const current = state.typingUsers[roomKey] || []
-    if (current.includes(data.userId)) return
-    set({ typingUsers: { ...state.typingUsers, [roomKey]: [...current, data.userId] } })
-  }
-
-  const onTypingStop = (data: { userId: string; channelId?: string; dmId?: string }) => {
-    const roomKey = data.channelId || data.dmId || ''
+  const removeTypingUser = (roomKey: string, userId: string) => {
+    const key = getTypingKey(roomKey, userId)
+    if (typingTimeouts[key]) {
+      clearTimeout(typingTimeouts[key])
+      delete typingTimeouts[key]
+    }
     const state = get()
     set({
       typingUsers: {
         ...state.typingUsers,
-        [roomKey]: (state.typingUsers[roomKey] || []).filter((u) => u !== data.userId),
+        [roomKey]: (state.typingUsers[roomKey] || []).filter((u) => u !== userId),
       },
     })
+  }
+
+  const onTypingStart = (data: { userId: string; channelId?: string; dmId?: string }) => {
+    const roomKey = data.channelId || data.dmId || ''
+    const state = get()
+    const current = state.typingUsers[roomKey] || []
+    const key = getTypingKey(roomKey, data.userId)
+
+    // Clear any existing timeout for this user
+    if (typingTimeouts[key]) {
+      clearTimeout(typingTimeouts[key])
+    }
+
+    if (!current.includes(data.userId)) {
+      set({ typingUsers: { ...state.typingUsers, [roomKey]: [...current, data.userId] } })
+    }
+
+    // Auto-expire after 5 seconds
+    typingTimeouts[key] = setTimeout(() => {
+      removeTypingUser(roomKey, data.userId)
+    }, 5000)
+  }
+
+  const onTypingStop = (data: { userId: string; channelId?: string; dmId?: string }) => {
+    const roomKey = data.channelId || data.dmId || ''
+    removeTypingUser(roomKey, data.userId)
   }
 
   socket.on('message:new', onMessageNew)
@@ -106,6 +134,12 @@ export function setupSocketListeners(socket: Socket): () => void {
     socket.off('message:deleted', onMessageDeleted)
     socket.off('typing:start', onTypingStart)
     socket.off('typing:stop', onTypingStop)
+
+    // Clear all typing timeouts
+    for (const key of Object.keys(typingTimeouts)) {
+      clearTimeout(typingTimeouts[key])
+      delete typingTimeouts[key]
+    }
   }
 }
 
@@ -161,9 +195,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  setActiveChannel: (channelId: string) => {
+  setActiveChannel: (channelId: string | null) => {
     set({ activeChannelId: channelId, activeDmId: null, messages: [] })
-    get().fetchMessages(channelId)
+    if (channelId) {
+      get().fetchMessages(channelId)
+    }
   },
 
   setActiveDm: (dmId: string) => {

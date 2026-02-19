@@ -6,6 +6,7 @@
 
 import type { FastifyInstance } from 'fastify'
 import { eq, and } from 'drizzle-orm'
+import { paginationQuerySchema } from '@smoker/shared'
 import { authenticate } from '../../middleware/auth.js'
 import { requireChannelMembership, requireDmMembership } from '../../middleware/roles.js'
 import { extractAuditContext } from '../../lib/audit.js'
@@ -122,12 +123,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
-      const query = request.query as { cursor?: string; limit?: string }
-      const result = await listChannelFiles(
-        channelId,
-        query.cursor,
-        query.limit ? Number(query.limit) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listChannelFiles(channelId, cursor, limit)
       return reply.status(200).send(result)
     },
   })
@@ -137,12 +136,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate, requireDmMembership('dmId')],
     handler: async (request, reply) => {
       const { dmId } = request.params as { dmId: string }
-      const query = request.query as { cursor?: string; limit?: string }
-      const result = await listDmFiles(
-        dmId,
-        query.cursor,
-        query.limit ? Number(query.limit) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listDmFiles(dmId, cursor, limit)
       return reply.status(200).send(result)
     },
   })
@@ -152,12 +149,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id } = request.user!
-      const query = request.query as { cursor?: string; limit?: string }
-      const result = await listMyFiles(
-        id,
-        query.cursor,
-        query.limit ? Number(query.limit) : undefined,
-      )
+      const parsed = paginationQuerySchema.safeParse(request.query)
+      if (!parsed.success) return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } })
+      const { cursor, limit } = parsed.data
+      const result = await listMyFiles(id, cursor, limit)
       return reply.status(200).send(result)
     },
   })

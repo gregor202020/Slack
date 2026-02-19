@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { getSocket } from '@/lib/socket'
+import { MAX_MESSAGE_LENGTH } from '@smoker/shared'
 
 export function MessageComposer() {
   const sendMessage = useChatStore((s) => s.sendMessage)
@@ -40,9 +41,12 @@ export function MessageComposer() {
     typingTimeout.current = setTimeout(() => emitTyping(false), 2000)
   }
 
+  const isOverLimit = body.length > MAX_MESSAGE_LENGTH
+  const showCharCount = body.length > MAX_MESSAGE_LENGTH - 500
+
   const handleSubmit = async () => {
     const trimmed = body.trim()
-    if (!trimmed || isSending) return
+    if (!trimmed || isSending || isOverLimit) return
 
     setIsSending(true)
     try {
@@ -74,12 +78,13 @@ export function MessageComposer() {
           onKeyDown={handleKeyDown}
           placeholder={isDisabled ? 'Select a conversation' : 'Type a message...'}
           disabled={isDisabled}
+          maxLength={MAX_MESSAGE_LENGTH}
           rows={1}
           className="flex-1 bg-transparent text-sm text-smoke-100 placeholder:text-smoke-400 resize-none focus:outline-none min-h-[36px] max-h-32"
         />
         <button
           onClick={handleSubmit}
-          disabled={!body.trim() || isSending || isDisabled}
+          disabled={!body.trim() || isSending || isDisabled || isOverLimit}
           className="shrink-0 p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,6 +92,11 @@ export function MessageComposer() {
           </svg>
         </button>
       </div>
+      {showCharCount && (
+        <p className={`text-xs mt-1 text-right ${isOverLimit ? 'text-error' : 'text-smoke-400'}`}>
+          {body.length.toLocaleString()} / {MAX_MESSAGE_LENGTH.toLocaleString()}
+        </p>
+      )}
     </div>
   )
 }
