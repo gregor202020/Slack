@@ -506,84 +506,87 @@ export async function acceptSwap(
     throw new ConflictError('Swap request has expired', 'SWAP_EXPIRED')
   }
 
-  // Swap the userId fields on both shifts using optimistic locking
-  const [sourceShift] = await db
-    .select()
-    .from(shifts)
-    .where(eq(shifts.id, swap.shiftId))
-    .limit(1)
+  // Perform all swap mutations inside a single transaction
+  await db.transaction(async (tx) => {
+    // Swap the userId fields on both shifts using optimistic locking
+    const [sourceShift] = await tx
+      .select()
+      .from(shifts)
+      .where(eq(shifts.id, swap.shiftId))
+      .limit(1)
 
-  if (!sourceShift) {
-    throw new NotFoundError('Source shift not found', 'SHIFT_NOT_FOUND')
-  }
+    if (!sourceShift) {
+      throw new NotFoundError('Source shift not found', 'SHIFT_NOT_FOUND')
+    }
 
-  const targetShiftId = swap.targetShiftId
-  if (!targetShiftId) {
-    throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
-  }
+    const targetShiftId = swap.targetShiftId
+    if (!targetShiftId) {
+      throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
+    }
 
-  const [targetShift] = await db
-    .select()
-    .from(shifts)
-    .where(eq(shifts.id, targetShiftId))
-    .limit(1)
+    const [targetShift] = await tx
+      .select()
+      .from(shifts)
+      .where(eq(shifts.id, targetShiftId))
+      .limit(1)
 
-  if (!targetShift) {
-    throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
-  }
+    if (!targetShift) {
+      throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
+    }
 
-  // Update source shift: assign to target user
-  const sourceResult = await db
-    .update(shifts)
-    .set({
-      userId: targetShift.userId,
-      lockedBySwapId: null,
-      version: sql`${shifts.version} + 1`,
-      updatedAt: new Date(),
+    // Update source shift: assign to target user
+    const sourceResult = await tx
+      .update(shifts)
+      .set({
+        userId: targetShift.userId,
+        lockedBySwapId: null,
+        version: sql`${shifts.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(shifts.id, swap.shiftId), eq(shifts.version, sourceShift.version)))
+      .returning()
+
+    if (sourceResult.length === 0) {
+      throw new ConflictError('Source shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
+    }
+
+    // Update target shift: assign to source user
+    const targetResult = await tx
+      .update(shifts)
+      .set({
+        userId: sourceShift.userId,
+        version: sql`${shifts.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(shifts.id, targetShiftId), eq(shifts.version, targetShift.version)))
+      .returning()
+
+    if (targetResult.length === 0) {
+      throw new ConflictError('Target shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
+    }
+
+    // Update swap status
+    await tx
+      .update(shiftSwaps)
+      .set({
+        status: 'accepted',
+        resolvedAt: new Date(),
+      })
+      .where(eq(shiftSwaps.id, swapId))
+
+    await logAudit({
+      actorId: userId,
+      actorType: 'user',
+      action: 'shift.swap_accepted',
+      targetType: 'shift_swap',
+      targetId: swapId,
+      metadata: {
+        shiftId: swap.shiftId,
+        targetShiftId,
+      },
+      ipAddress,
+      userAgent,
     })
-    .where(and(eq(shifts.id, swap.shiftId), eq(shifts.version, sourceShift.version)))
-    .returning()
-
-  if (sourceResult.length === 0) {
-    throw new ConflictError('Source shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
-  }
-
-  // Update target shift: assign to source user
-  const targetResult = await db
-    .update(shifts)
-    .set({
-      userId: sourceShift.userId,
-      version: sql`${shifts.version} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(shifts.id, targetShiftId), eq(shifts.version, targetShift.version)))
-    .returning()
-
-  if (targetResult.length === 0) {
-    throw new ConflictError('Target shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
-  }
-
-  // Update swap status
-  await db
-    .update(shiftSwaps)
-    .set({
-      status: 'accepted',
-      resolvedAt: new Date(),
-    })
-    .where(eq(shiftSwaps.id, swapId))
-
-  await logAudit({
-    actorId: userId,
-    actorType: 'user',
-    action: 'shift.swap_accepted',
-    targetType: 'shift_swap',
-    targetId: swapId,
-    metadata: {
-      shiftId: swap.shiftId,
-      targetShiftId,
-    },
-    ipAddress,
-    userAgent,
   })
 
   emitToUser(swap.requesterUserId, 'shift:swap_accepted', swap)
@@ -675,83 +678,85 @@ export async function overrideSwap(
     throw new NotFoundError('Swap request not found', 'SWAP_NOT_FOUND')
   }
 
-  // Force-accept: perform the same swap logic as acceptSwap
-  const [sourceShift] = await db
-    .select()
-    .from(shifts)
-    .where(eq(shifts.id, swap.shiftId))
-    .limit(1)
+  // Force-accept: perform the same swap logic as acceptSwap inside a transaction
+  await db.transaction(async (tx) => {
+    const [sourceShift] = await tx
+      .select()
+      .from(shifts)
+      .where(eq(shifts.id, swap.shiftId))
+      .limit(1)
 
-  if (!sourceShift) {
-    throw new NotFoundError('Source shift not found', 'SHIFT_NOT_FOUND')
-  }
+    if (!sourceShift) {
+      throw new NotFoundError('Source shift not found', 'SHIFT_NOT_FOUND')
+    }
 
-  const targetShiftId = swap.targetShiftId
-  if (!targetShiftId) {
-    throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
-  }
+    const targetShiftId = swap.targetShiftId
+    if (!targetShiftId) {
+      throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
+    }
 
-  const [targetShift] = await db
-    .select()
-    .from(shifts)
-    .where(eq(shifts.id, targetShiftId))
-    .limit(1)
+    const [targetShift] = await tx
+      .select()
+      .from(shifts)
+      .where(eq(shifts.id, targetShiftId))
+      .limit(1)
 
-  if (!targetShift) {
-    throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
-  }
+    if (!targetShift) {
+      throw new NotFoundError('Target shift not found', 'SHIFT_NOT_FOUND')
+    }
 
-  // Swap users on both shifts
-  const sourceResult = await db
-    .update(shifts)
-    .set({
-      userId: targetShift.userId,
-      lockedBySwapId: null,
-      version: sql`${shifts.version} + 1`,
-      updatedAt: new Date(),
+    // Swap users on both shifts
+    const sourceResult = await tx
+      .update(shifts)
+      .set({
+        userId: targetShift.userId,
+        lockedBySwapId: null,
+        version: sql`${shifts.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(shifts.id, swap.shiftId), eq(shifts.version, sourceShift.version)))
+      .returning()
+
+    if (sourceResult.length === 0) {
+      throw new ConflictError('Source shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
+    }
+
+    const targetResult = await tx
+      .update(shifts)
+      .set({
+        userId: sourceShift.userId,
+        version: sql`${shifts.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(shifts.id, targetShiftId), eq(shifts.version, targetShift.version)))
+      .returning()
+
+    if (targetResult.length === 0) {
+      throw new ConflictError('Target shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
+    }
+
+    // Update swap status to overridden
+    await tx
+      .update(shiftSwaps)
+      .set({
+        status: 'overridden',
+        resolvedAt: new Date(),
+      })
+      .where(eq(shiftSwaps.id, swapId))
+
+    await logAudit({
+      actorId,
+      actorType: 'user',
+      action: 'shift.swap_overridden',
+      targetType: 'shift_swap',
+      targetId: swapId,
+      metadata: {
+        shiftId: swap.shiftId,
+        targetShiftId,
+      },
+      ipAddress,
+      userAgent,
     })
-    .where(and(eq(shifts.id, swap.shiftId), eq(shifts.version, sourceShift.version)))
-    .returning()
-
-  if (sourceResult.length === 0) {
-    throw new ConflictError('Source shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
-  }
-
-  const targetResult = await db
-    .update(shifts)
-    .set({
-      userId: sourceShift.userId,
-      version: sql`${shifts.version} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(shifts.id, targetShiftId), eq(shifts.version, targetShift.version)))
-    .returning()
-
-  if (targetResult.length === 0) {
-    throw new ConflictError('Target shift was modified by another user', 'OPTIMISTIC_LOCK_FAILED')
-  }
-
-  // Update swap status to overridden
-  await db
-    .update(shiftSwaps)
-    .set({
-      status: 'overridden',
-      resolvedAt: new Date(),
-    })
-    .where(eq(shiftSwaps.id, swapId))
-
-  await logAudit({
-    actorId,
-    actorType: 'user',
-    action: 'shift.swap_overridden',
-    targetType: 'shift_swap',
-    targetId: swapId,
-    metadata: {
-      shiftId: swap.shiftId,
-      targetShiftId,
-    },
-    ipAddress,
-    userAgent,
   })
 }
 

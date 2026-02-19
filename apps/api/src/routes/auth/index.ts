@@ -74,6 +74,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/auth/refresh — Refresh access token
   app.post('/refresh', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
     handler: async (request, reply) => {
       // Extract refresh token from httpOnly cookie
       const refreshToken =

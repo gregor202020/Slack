@@ -382,50 +382,83 @@ export async function deleteChannel(
     throw new NotFoundError('Channel not found', 'CHANNEL_NOT_FOUND')
   }
 
-  // Move all channel messages to deletedVault before deletion
-  const channelMessages = await db
-    .select()
-    .from(messages)
-    .where(and(eq(messages.channelId, channelId), isNull(messages.deletedAt)))
-
   const purgeAfter = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000) // 180 days
+  const batchSize = 500
+  let totalArchived = 0
 
-  for (const msg of channelMessages) {
-    const content = {
-      id: msg.id,
-      channelId: msg.channelId,
-      userId: msg.userId,
-      parentMessageId: msg.parentMessageId,
-      body: msg.body,
-      createdAt: msg.createdAt,
-      updatedAt: msg.updatedAt,
+  await db.transaction(async (tx) => {
+    // Move channel messages to deletedVault in batches
+    let offset = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const batch = await tx
+        .select({
+          id: messages.id,
+          channelId: messages.channelId,
+          userId: messages.userId,
+          parentMessageId: messages.parentMessageId,
+          body: messages.body,
+          createdAt: messages.createdAt,
+          updatedAt: messages.updatedAt,
+        })
+        .from(messages)
+        .where(and(eq(messages.channelId, channelId), isNull(messages.deletedAt)))
+        .limit(batchSize)
+        .offset(offset)
+
+      if (batch.length === 0) {
+        hasMore = false
+        break
+      }
+
+      // Batch insert into vault
+      await tx.insert(deletedVault).values(
+        batch.map((msg) => {
+          const content = {
+            id: msg.id,
+            channelId: msg.channelId,
+            userId: msg.userId,
+            parentMessageId: msg.parentMessageId,
+            body: msg.body,
+            createdAt: msg.createdAt,
+            updatedAt: msg.updatedAt,
+          }
+          return {
+            originalType: 'message' as const,
+            originalId: msg.id,
+            content,
+            contentHash: sha256(JSON.stringify(content)),
+            deletedBy: actorId,
+            purgeAfter,
+          }
+        }),
+      )
+
+      totalArchived += batch.length
+      offset += batchSize
+
+      if (batch.length < batchSize) {
+        hasMore = false
+      }
     }
 
-    await db.insert(deletedVault).values({
-      originalType: 'message',
-      originalId: msg.id,
-      content,
-      contentHash: sha256(JSON.stringify(content)),
-      deletedBy: actorId,
-      purgeAfter,
+    // Soft-delete: set status to 'deleted'
+    await tx
+      .update(channels)
+      .set({ status: 'deleted', updatedAt: new Date() })
+      .where(eq(channels.id, channelId))
+
+    await logAudit({
+      actorId,
+      actorType: 'user',
+      action: 'channel.deleted',
+      targetType: 'channel',
+      targetId: channelId,
+      metadata: { name: channel.name, messageCount: totalArchived },
+      ipAddress,
+      userAgent,
     })
-  }
-
-  // Soft-delete: set status to 'deleted'
-  await db
-    .update(channels)
-    .set({ status: 'deleted', updatedAt: new Date() })
-    .where(eq(channels.id, channelId))
-
-  await logAudit({
-    actorId,
-    actorType: 'user',
-    action: 'channel.deleted',
-    targetType: 'channel',
-    targetId: channelId,
-    metadata: { name: channel.name, messageCount: channelMessages.length },
-    ipAddress,
-    userAgent,
   })
 
   emitToChannel(channelId, 'channel:deleted', { channelId })

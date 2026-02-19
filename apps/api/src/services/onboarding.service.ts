@@ -115,111 +115,116 @@ export async function completeOnboarding(
     }
   }
 
-  // Update user profile
-  const now = new Date()
+  // Perform all onboarding mutations inside a single transaction
+  const updatedUser = await db.transaction(async (tx) => {
+    // Update user profile
+    const now = new Date()
 
-  const [updatedUser] = await db
-    .update(users)
-    .set({
-      fullName: data.fullName,
-      email: data.email,
-      address: data.address,
-      positionId: data.positionId,
-      timezone: data.timezone,
-      profileCompletedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(users.id, userId))
-    .returning()
-
-  // If venueId provided and user not already a member, join venue + default channels
-  if (data.venueId) {
-    const [existingMembership] = await db
-      .select()
-      .from(userVenues)
-      .where(and(eq(userVenues.userId, userId), eq(userVenues.venueId, data.venueId)))
-      .limit(1)
-
-    if (!existingMembership) {
-      // Join the venue
-      await db.insert(userVenues).values({
-        userId,
-        venueId: data.venueId,
-        venueRole: 'basic',
+    const [updated] = await tx
+      .update(users)
+      .set({
+        fullName: data.fullName,
+        email: data.email,
+        address: data.address,
+        positionId: data.positionId,
+        timezone: data.timezone,
+        profileCompletedAt: now,
+        updatedAt: now,
       })
+      .where(eq(users.id, userId))
+      .returning()
 
-      // Auto-join all default channels for this venue
-      const venueDefaultChannels = await db
+    // If venueId provided and user not already a member, join venue + default channels
+    if (data.venueId) {
+      const [existingMembership] = await tx
         .select()
-        .from(channels)
-        .where(
-          and(
-            eq(channels.venueId, data.venueId),
-            eq(channels.isDefault, true),
-            eq(channels.status, 'active'),
-          ),
-        )
+        .from(userVenues)
+        .where(and(eq(userVenues.userId, userId), eq(userVenues.venueId, data.venueId)))
+        .limit(1)
 
-      if (venueDefaultChannels.length > 0) {
-        await db.insert(channelMembers).values(
-          venueDefaultChannels.map((ch) => ({
+      if (!existingMembership) {
+        // Join the venue
+        await tx.insert(userVenues).values({
+          userId,
+          venueId: data.venueId,
+          venueRole: 'basic',
+        })
+
+        // Auto-join all default channels for this venue
+        const venueDefaultChannels = await tx
+          .select()
+          .from(channels)
+          .where(
+            and(
+              eq(channels.venueId, data.venueId),
+              eq(channels.isDefault, true),
+              eq(channels.status, 'active'),
+            ),
+          )
+
+        if (venueDefaultChannels.length > 0) {
+          await tx.insert(channelMembers).values(
+            venueDefaultChannels.map((ch) => ({
+              channelId: ch.id,
+              userId,
+            })),
+          )
+        }
+      }
+    }
+
+    // Auto-join all org-wide default channels the user is not already in
+    const orgDefaultChannels = await tx
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.scope, 'org'),
+          eq(channels.isDefault, true),
+          eq(channels.status, 'active'),
+        ),
+      )
+
+    if (orgDefaultChannels.length > 0) {
+      // Find which org-wide channels the user is already a member of
+      const existingOrgMemberships = await tx
+        .select({ channelId: channelMembers.channelId })
+        .from(channelMembers)
+        .where(eq(channelMembers.userId, userId))
+
+      const existingChannelIds = new Set(existingOrgMemberships.map((m) => m.channelId))
+
+      const newOrgChannels = orgDefaultChannels.filter((ch) => !existingChannelIds.has(ch.id))
+
+      if (newOrgChannels.length > 0) {
+        await tx.insert(channelMembers).values(
+          newOrgChannels.map((ch) => ({
             channelId: ch.id,
             userId,
           })),
         )
       }
     }
-  }
 
-  // Auto-join all org-wide default channels the user is not already in
-  const orgDefaultChannels = await db
-    .select()
-    .from(channels)
-    .where(
-      and(
-        eq(channels.scope, 'org'),
-        eq(channels.isDefault, true),
-        eq(channels.status, 'active'),
-      ),
-    )
+    // Audit log
+    await logAudit({
+      actorId: userId,
+      actorType: 'user',
+      action: 'user.onboarding_completed',
+      targetType: 'user',
+      targetId: userId,
+      metadata: {
+        positionId: data.positionId,
+        venueId: data.venueId ?? null,
+      },
+      ipAddress,
+      userAgent,
+    })
 
-  if (orgDefaultChannels.length > 0) {
-    // Find which org-wide channels the user is already a member of
-    const existingOrgMemberships = await db
-      .select({ channelId: channelMembers.channelId })
-      .from(channelMembers)
-      .where(eq(channelMembers.userId, userId))
-
-    const existingChannelIds = new Set(existingOrgMemberships.map((m) => m.channelId))
-
-    const newOrgChannels = orgDefaultChannels.filter((ch) => !existingChannelIds.has(ch.id))
-
-    if (newOrgChannels.length > 0) {
-      await db.insert(channelMembers).values(
-        newOrgChannels.map((ch) => ({
-          channelId: ch.id,
-          userId,
-        })),
-      )
-    }
-  }
-
-  // Audit log
-  await logAudit({
-    actorId: userId,
-    actorType: 'user',
-    action: 'user.onboarding_completed',
-    targetType: 'user',
-    targetId: userId,
-    metadata: {
-      positionId: data.positionId,
-      venueId: data.venueId ?? null,
-    },
-    ipAddress,
-    userAgent,
+    return updated!
   })
 
-  return updatedUser!
+  return updatedUser
 }
 
 // ---------------------------------------------------------------------------

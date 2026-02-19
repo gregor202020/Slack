@@ -131,6 +131,8 @@ export function CanvasEditor() {
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestYjsStateRef = useRef<string | null>(null)
+  const pendingTextRef = useRef<string | null>(null)
+  const saveCanvasRef = useRef<((newText: string) => Promise<void>) | null>(null)
 
   // -----------------------------------------------------------------------
   // Fetch canvas
@@ -278,26 +280,37 @@ export function CanvasEditor() {
     [channelId, canvasData],
   )
 
+  // Keep saveCanvasRef in sync so the unmount cleanup can call it
+  saveCanvasRef.current = saveCanvas
+
   const handleTextChange = useCallback(
     (newText: string) => {
       setText(newText)
+      pendingTextRef.current = newText
 
       // Debounce: save after 500ms of inactivity
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
       saveTimeoutRef.current = setTimeout(() => {
+        pendingTextRef.current = null
         saveCanvas(newText)
       }, 500)
     },
     [saveCanvas],
   )
 
-  // Cleanup timeout on unmount
+  // Cleanup timeout on unmount — flush any pending save
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+      }
+      // Flush pending unsaved text
+      if (pendingTextRef.current !== null && saveCanvasRef.current) {
+        saveCanvasRef.current(pendingTextRef.current)
+        pendingTextRef.current = null
       }
     }
   }, [])

@@ -1,0 +1,3 @@
+CREATE INDEX "idx_messages_channel_active" ON "messages" USING btree ("channel_id","created_at") WHERE deleted_at IS NULL;--> statement-breakpoint
+CREATE INDEX "idx_messages_dm_active" ON "messages" USING btree ("dm_id","created_at") WHERE deleted_at IS NULL;--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "chk_messages_target" CHECK ((channel_id IS NOT NULL AND dm_id IS NULL) OR (channel_id IS NULL AND dm_id IS NOT NULL));

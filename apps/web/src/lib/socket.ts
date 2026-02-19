@@ -10,8 +10,8 @@ export function getSocket(): Socket {
     socket = io(SOCKET_URL, {
       autoConnect: false,
       transports: ['websocket', 'polling'],
-      auth: {
-        token: getAccessToken(),
+      auth: (cb) => {
+        cb({ token: getAccessToken() })
       },
     })
   }
@@ -20,8 +20,6 @@ export function getSocket(): Socket {
 
 export function connectSocket() {
   const s = getSocket()
-  // Update auth token before connecting
-  s.auth = { token: getAccessToken() }
   if (!s.connected) {
     s.connect()
   }

@@ -8,6 +8,7 @@
  * TODO: Replace in-memory OTP store with Redis for multi-server deployments.
  */
 
+import { timingSafeEqual } from 'node:crypto'
 import { eq, and, gte, count, isNull } from 'drizzle-orm'
 import { db, users, userSessions, otpAttempts } from '@smoker/db'
 import {
@@ -221,10 +222,10 @@ export async function verifyOtp(
     throw new RateLimitError('Too many verification attempts', 'RATE_LIMIT_EXCEEDED')
   }
 
-  // Compare hashes
+  // Compare hashes using timing-safe comparison to prevent timing attacks
   const providedHash = hashToken(code)
 
-  if (providedHash !== storedOtp.hash) {
+  if (!timingSafeEqual(Buffer.from(providedHash, 'hex'), Buffer.from(storedOtp.hash, 'hex'))) {
     // Record failed verification attempt
     await db.insert(otpAttempts).values({
       phoneHash,

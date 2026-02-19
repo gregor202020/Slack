@@ -67,6 +67,15 @@ export default function ChannelMessagesScreen() {
     }
   }, [channelId, fetchMessages, setActiveChannel])
 
+  // Clean up typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const handleSend = useCallback(async () => {
     if (!text.trim() || !channelId || isSending) return
     const messageText = text.trim()

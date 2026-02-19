@@ -84,7 +84,7 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/shifts — Create a shift
   // Admin (org-wide) or venue-scoped Admin (spec Section 15.2)
   app.post('/', {
-    preHandler: [authenticate, validateBody(createShiftSchema)],
+    preHandler: [authenticate, requireRole('admin', 'super_admin'), validateBody(createShiftSchema)],
     handler: async (request, reply) => {
       const { id } = request.user!
       const { ipAddress, userAgent } = extractAuditContext(request)
@@ -113,7 +113,7 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH /api/shifts/:shiftId — Update a shift
   app.patch('/:shiftId', {
-    preHandler: [authenticate, validateBody(updateShiftSchema)],
+    preHandler: [authenticate, requireRole('admin', 'super_admin'), validateBody(updateShiftSchema)],
     handler: async (request, reply) => {
       const { id } = request.user!
       const { shiftId } = request.params as { shiftId: string }
@@ -132,7 +132,7 @@ export async function shiftRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/shifts/:shiftId — Cancel/delete a shift
   app.delete('/:shiftId', {
-    preHandler: [authenticate],
+    preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
       const { shiftId } = request.params as { shiftId: string }

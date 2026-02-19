@@ -6,6 +6,7 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import { users } from './users';
@@ -45,6 +46,11 @@ export const messages = pgTable(
     index('idx_messages_channel_created').on(table.channelId, table.createdAt),
     index('idx_messages_dm_created').on(table.dmId, table.createdAt),
     index('idx_messages_thread').on(table.parentMessageId, table.createdAt),
+    // Partial indexes for non-deleted messages (Finding S-01)
+    index('idx_messages_channel_active').on(table.channelId, table.createdAt).where(sql`deleted_at IS NULL`),
+    index('idx_messages_dm_active').on(table.dmId, table.createdAt).where(sql`deleted_at IS NULL`),
+    // CHECK: messages must target exactly one of channel or DM (Finding S-06)
+    check('chk_messages_target', sql`(channel_id IS NOT NULL AND dm_id IS NULL) OR (channel_id IS NULL AND dm_id IS NOT NULL)`),
   ],
 );
 

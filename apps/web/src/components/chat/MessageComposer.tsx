@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { getSocket } from '@/lib/socket'
 
@@ -11,6 +11,15 @@ export function MessageComposer() {
   const [body, setBody] = useState('')
   const [isSending, setIsSending] = useState(false)
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clean up typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeout.current) {
+        clearTimeout(typingTimeout.current)
+      }
+    }
+  }, [])
 
   const emitTyping = useCallback((isTyping: boolean) => {
     const socket = getSocket()

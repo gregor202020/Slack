@@ -23,6 +23,7 @@ import { sha256 } from '../lib/crypto.js'
 
 const DEFAULT_PAGE_LIMIT = 50
 const VAULT_RETENTION_DAYS = 180
+const EXPORT_HARD_LIMIT = 10_000
 
 // ===========================================================================
 // 1. Bulk Delete
@@ -106,64 +107,88 @@ export async function executeBulkDelete(
     conditions.push(eq(messages.channelId, channelId))
   }
 
-  // Fetch matching messages
-  const matchingMessages = await db
-    .select()
-    .from(messages)
-    .where(and(...conditions))
-
-  if (matchingMessages.length === 0) {
-    return { deleted: 0 }
-  }
-
+  const whereClause = and(...conditions)
+  const batchSize = 500
   const purgeAfter = new Date()
   purgeAfter.setDate(purgeAfter.getDate() + VAULT_RETENTION_DAYS)
 
-  // Move each message to the vault and soft-delete
-  for (const msg of matchingMessages) {
-    const contentPayload = {
-      id: msg.id,
-      channelId: msg.channelId,
-      dmId: msg.dmId,
-      userId: msg.userId,
-      parentMessageId: msg.parentMessageId,
-      body: msg.body,
-      createdAt: msg.createdAt,
-      updatedAt: msg.updatedAt,
+  let totalDeleted = 0
+
+  await db.transaction(async (tx) => {
+    // Process messages in batches to avoid loading everything into memory
+    let offset = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const batch = await tx
+        .select({
+          id: messages.id,
+          channelId: messages.channelId,
+          dmId: messages.dmId,
+          userId: messages.userId,
+          body: messages.body,
+          createdAt: messages.createdAt,
+        })
+        .from(messages)
+        .where(whereClause)
+        .limit(batchSize)
+        .offset(offset)
+
+      if (batch.length === 0) {
+        hasMore = false
+        break
+      }
+
+      // Batch insert into vault
+      await tx.insert(deletedVault).values(
+        batch.map((msg) => {
+          const contentPayload = JSON.stringify(msg)
+          return {
+            originalType: 'message' as const,
+            originalId: msg.id,
+            content: msg,
+            contentHash: sha256(contentPayload),
+            deletedBy: actorId,
+            purgeAfter,
+          }
+        }),
+      )
+
+      totalDeleted += batch.length
+      offset += batchSize
+
+      if (batch.length < batchSize) {
+        hasMore = false
+      }
     }
 
-    await db.insert(deletedVault).values({
-      originalType: 'message',
-      originalId: msg.id,
-      content: contentPayload,
-      contentHash: sha256(JSON.stringify(contentPayload)),
-      deletedBy: actorId,
-      purgeAfter,
+    if (totalDeleted === 0) {
+      return
+    }
+
+    // Soft-delete all matching messages
+    await tx
+      .update(messages)
+      .set({ deletedAt: new Date() })
+      .where(whereClause)
+
+    await logAudit({
+      actorId,
+      actorType: 'user',
+      action: 'bulk_delete.executed',
+      targetType: 'messages',
+      metadata: {
+        scope,
+        channelId,
+        olderThanDays,
+        deletedCount: totalDeleted,
+      },
+      ipAddress,
+      userAgent,
     })
-  }
-
-  // Soft-delete all matching messages
-  await db
-    .update(messages)
-    .set({ deletedAt: new Date() })
-    .where(and(...conditions))
-
-  await logAudit({
-    actorId,
-    actorType: 'user',
-    action: 'bulk_delete.executed',
-    targetType: 'messages',
-    metadata: {
-      scope,
-      channelId,
-      olderThanDays,
-      deletedCount: matchingMessages.length,
-    },
-    ipAddress,
-    userAgent,
   })
 
-  return { deleted: matchingMessages.length }
+  return { deleted: totalDeleted }
 }
 
 // ===========================================================================
@@ -295,7 +320,6 @@ export async function exportAuditLogs(
   filters: AuditLogFilters,
   format: 'json' | 'csv',
 ) {
-  // Fetch all matching logs (no pagination for export)
   const conditions: ReturnType<typeof eq>[] = []
 
   if (filters.action) {
@@ -317,23 +341,35 @@ export async function exportAuditLogs(
     conditions.push(lt(auditLogs.createdAt, new Date(filters.endDate)))
   }
 
+  // Hard limit to prevent unbounded queries; fetch one extra to detect truncation
   const rows = await db
     .select()
     .from(auditLogs)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt))
+    .limit(EXPORT_HARD_LIMIT + 1)
+
+  const truncated = rows.length > EXPORT_HARD_LIMIT
+  const exportRows = truncated ? rows.slice(0, EXPORT_HARD_LIMIT) : rows
 
   if (format === 'csv') {
     const header =
       'id,actorId,actorType,action,targetType,targetId,ipAddress,userAgent,createdAt'
-    const csvRows = rows.map(
+    const csvRows = exportRows.map(
       (r) =>
         `${r.id},${r.actorId ?? ''},${r.actorType},${r.action},${r.targetType ?? ''},${r.targetId ?? ''},${r.ipAddress ?? ''},${r.userAgent ?? ''},${r.createdAt.toISOString()}`,
     )
-    return { format: 'csv' as const, data: [header, ...csvRows].join('\n') }
+    const csvData = [header, ...csvRows].join('\n')
+    return {
+      format: 'csv' as const,
+      data: truncated
+        ? csvData + `\n# Export truncated at ${EXPORT_HARD_LIMIT} rows. Apply narrower filters to export remaining data.`
+        : csvData,
+      truncated,
+    }
   }
 
-  return { format: 'json' as const, data: rows }
+  return { format: 'json' as const, data: exportRows, truncated }
 }
 
 // ===========================================================================

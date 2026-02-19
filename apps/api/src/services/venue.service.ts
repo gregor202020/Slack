@@ -5,7 +5,7 @@
  * venue-scoped channel listing, and position management.
  */
 
-import { eq, and, desc, count, ne } from 'drizzle-orm'
+import { eq, and, desc, count, ne, sql } from 'drizzle-orm'
 import { db, venues, userVenues, channels, channelMembers, positions, users } from '@smoker/db'
 import { NotFoundError, ForbiddenError, ConflictError, venueArchivedError } from '../lib/errors.js'
 import { logAudit } from '../lib/audit.js'
@@ -53,7 +53,7 @@ export async function listVenues(
       name: venues.name,
       address: venues.address,
       status: venues.status,
-      memberCount: count(userVenues.userId),
+      memberCount: sql<number>`(SELECT count(*)::int FROM user_venues uv WHERE uv.venue_id = ${venues.id})`,
       createdAt: venues.createdAt,
     })
     .from(venues)
@@ -61,7 +61,6 @@ export async function listVenues(
       userVenues,
       and(eq(venues.id, userVenues.venueId), eq(userVenues.userId, userId)),
     )
-    .groupBy(venues.id)
     .orderBy(desc(venues.createdAt))
 
   return rows.map((r) => ({ ...r, memberCount: Number(r.memberCount) }))
@@ -77,63 +76,67 @@ export async function createVenue(
   ipAddress: string,
   userAgent: string,
 ) {
-  const [venue] = await db
-    .insert(venues)
-    .values({
-      name: data.name,
-      address: data.address,
-      createdBy,
-    })
-    .returning()
-
-  if (!venue) {
-    throw new Error('Failed to create venue')
-  }
-
-  // Auto-add creator as venue admin
-  await db.insert(userVenues).values({
-    userId: createdBy,
-    venueId: venue.id,
-    venueRole: 'admin',
-  })
-
-  // Create 3 default channels for the venue
-  const defaultChannels = [
-    { name: 'general', isMandatory: true },
-    { name: 'announcements', isMandatory: true },
-    { name: 'random', isMandatory: false },
-  ]
-
-  for (const ch of defaultChannels) {
-    const [channel] = await db
-      .insert(channels)
+  const venue = await db.transaction(async (tx) => {
+    const [newVenue] = await tx
+      .insert(venues)
       .values({
-        name: ch.name,
-        scope: 'venue',
-        venueId: venue.id,
-        ownerUserId: createdBy,
-        isDefault: true,
-        isMandatory: ch.isMandatory,
+        name: data.name,
+        address: data.address,
+        createdBy,
       })
       .returning()
 
-    if (channel) {
-      await db.insert(channelMembers).values({
-        channelId: channel.id,
-        userId: createdBy,
-      })
+    if (!newVenue) {
+      throw new Error('Failed to create venue')
     }
-  }
 
-  await logAudit({
-    actorId: createdBy,
-    actorType: 'user',
-    action: 'venue.created',
-    targetType: 'venue',
-    targetId: venue.id,
-    metadata: { name: data.name },
-    ipAddress,
-    userAgent,
+    // Auto-add creator as venue admin
+    await tx.insert(userVenues).values({
+      userId: createdBy,
+      venueId: newVenue.id,
+      venueRole: 'admin',
+    })
+
+    // Create 3 default channels for the venue
+    const defaultChannels = [
+      { name: 'general', isMandatory: true },
+      { name: 'announcements', isMandatory: true },
+      { name: 'random', isMandatory: false },
+    ]
+
+    for (const ch of defaultChannels) {
+      const [channel] = await tx
+        .insert(channels)
+        .values({
+          name: ch.name,
+          scope: 'venue',
+          venueId: newVenue.id,
+          ownerUserId: createdBy,
+          isDefault: true,
+          isMandatory: ch.isMandatory,
+        })
+        .returning()
+
+      if (channel) {
+        await tx.insert(channelMembers).values({
+          channelId: channel.id,
+          userId: createdBy,
+        })
+      }
+    }
+
+    await logAudit({
+      actorId: createdBy,
+      actorType: 'user',
+      action: 'venue.created',
+      targetType: 'venue',
+      targetId: newVenue.id,
+      metadata: { name: data.name },
+      ipAddress,
+      userAgent,
+    })
+
+    return newVenue
   })
 
   return venue

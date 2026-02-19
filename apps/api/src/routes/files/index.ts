@@ -5,9 +5,12 @@
  */
 
 import type { FastifyInstance } from 'fastify'
+import { eq, and } from 'drizzle-orm'
 import { authenticate } from '../../middleware/auth.js'
 import { requireChannelMembership, requireDmMembership } from '../../middleware/roles.js'
 import { extractAuditContext } from '../../lib/audit.js'
+import { ForbiddenError } from '../../lib/errors.js'
+import { db, channelMembers, dmMembers } from '@smoker/db'
 import {
   uploadFile,
   getFileById,
@@ -47,6 +50,23 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         (data.fields.channelId as { value?: string } | undefined)?.value ?? undefined
       const dmId =
         (data.fields.dmId as { value?: string } | undefined)?.value ?? undefined
+
+      // Verify membership in the target channel or DM before allowing upload
+      if (channelId) {
+        const [member] = await db
+          .select({ channelId: channelMembers.channelId })
+          .from(channelMembers)
+          .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+          .limit(1)
+        if (!member) throw new ForbiddenError('Not a member of this channel')
+      } else if (dmId) {
+        const [member] = await db
+          .select({ dmId: dmMembers.dmId })
+          .from(dmMembers)
+          .where(and(eq(dmMembers.dmId, dmId), eq(dmMembers.userId, userId)))
+          .limit(1)
+        if (!member) throw new ForbiddenError('Not a member of this DM')
+      }
 
       const file = await uploadFile({
         fileBuffer,

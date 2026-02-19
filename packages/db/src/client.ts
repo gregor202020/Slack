@@ -9,12 +9,24 @@ if (!DATABASE_URL) {
 }
 
 /**
- * Raw postgres.js connection.
+ * Raw postgres.js connection with explicit pool configuration.
  * Use this for raw SQL queries or when you need direct access to the driver.
  */
-export const sql = postgres(DATABASE_URL);
+export const sql = postgres(DATABASE_URL, {
+  max: 20,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 /**
  * Drizzle ORM database instance with full schema typing.
  */
 export const db = drizzle(sql, { schema });
+
+/**
+ * Gracefully close the database connection pool.
+ * Call this during application shutdown.
+ */
+export async function closeDb() {
+  await sql.end();
+}

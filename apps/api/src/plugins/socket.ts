@@ -128,13 +128,14 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
     })
 
     // Typing indicators — broadcast to the relevant room
+    // Only broadcast if the socket is actually a member of the target room
     socket.on('typing:start', (data: { channelId?: string, dmId?: string }) => {
-      if (data.channelId) {
+      if (data.channelId && socket.rooms.has(`channel:${data.channelId}`)) {
         socket.to(`channel:${data.channelId}`).emit('typing:start', {
           userId,
           channelId: data.channelId,
         })
-      } else if (data.dmId) {
+      } else if (data.dmId && socket.rooms.has(`dm:${data.dmId}`)) {
         socket.to(`dm:${data.dmId}`).emit('typing:start', {
           userId,
           dmId: data.dmId,
@@ -143,12 +144,12 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
     })
 
     socket.on('typing:stop', (data: { channelId?: string, dmId?: string }) => {
-      if (data.channelId) {
+      if (data.channelId && socket.rooms.has(`channel:${data.channelId}`)) {
         socket.to(`channel:${data.channelId}`).emit('typing:stop', {
           userId,
           channelId: data.channelId,
         })
-      } else if (data.dmId) {
+      } else if (data.dmId && socket.rooms.has(`dm:${data.dmId}`)) {
         socket.to(`dm:${data.dmId}`).emit('typing:stop', {
           userId,
           dmId: data.dmId,

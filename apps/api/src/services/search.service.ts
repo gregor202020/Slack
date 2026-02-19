@@ -30,7 +30,7 @@ const MAX_QUERY_LENGTH = 500
 // ---------------------------------------------------------------------------
 
 function sanitizeQuery(raw: string): string {
-  return raw.trim().slice(0, MAX_QUERY_LENGTH)
+  return raw.trim().slice(0, MAX_QUERY_LENGTH).replace(/%/g, '\\%').replace(/_/g, '\\_')
 }
 
 function isAdminOrAbove(orgRole: string): boolean {

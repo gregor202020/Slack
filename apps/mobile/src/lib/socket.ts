@@ -6,6 +6,7 @@
  */
 
 import { io, Socket } from 'socket.io-client'
+import { AppState, type AppStateStatus } from 'react-native'
 import { API_URL, getAccessToken } from './api'
 
 // Strip the /api suffix to get the base server URL
@@ -29,10 +30,11 @@ export async function connectSocket(): Promise<Socket> {
     socket.disconnect()
   }
 
-  const token = await getAccessToken()
-
   socket = io(SOCKET_URL, {
-    auth: { token },
+    auth: async (cb) => {
+      const token = await getAccessToken()
+      cb({ token: token || '' })
+    },
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 10,
@@ -60,10 +62,32 @@ export async function connectSocket(): Promise<Socket> {
   return socket
 }
 
+// ---------------------------------------------------------------------------
+// App state handling — disconnect on background, reconnect on foreground
+// ---------------------------------------------------------------------------
+
+let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null
+
+export function setupAppStateHandling(): void {
+  appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+    if (nextState === 'active' && socket && !socket.connected) {
+      socket.connect()
+    } else if (nextState === 'background' && socket?.connected) {
+      socket.disconnect()
+    }
+  })
+}
+
+export function cleanupAppStateHandling(): void {
+  appStateSubscription?.remove()
+  appStateSubscription = null
+}
+
 /**
  * Disconnect from the socket server and clean up.
  */
 export function disconnectSocket(): void {
+  cleanupAppStateHandling()
   if (socket) {
     socket.removeAllListeners()
     socket.disconnect()

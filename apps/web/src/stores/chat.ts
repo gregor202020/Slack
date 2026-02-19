@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
+import type { Socket } from 'socket.io-client'
 
 interface Message {
   id: string
@@ -45,7 +46,67 @@ interface ChatState {
   sendMessage: (body: string) => Promise<void>
   setActiveChannel: (channelId: string) => void
   setActiveDm: (dmId: string) => void
-  setupSocketListeners: () => void
+}
+
+export function setupSocketListeners(socket: Socket): () => void {
+  const { getState: get, setState: set } = useChatStore
+
+  const onMessageNew = (msg: Message) => {
+    const { activeChannelId, activeDmId, messages } = get()
+    if (msg.channelId === activeChannelId || msg.dmId === activeDmId) {
+      // Deduplicate: skip if message already exists
+      if (messages.some((m) => m.id === msg.id)) return
+      set({ messages: [...messages, msg] })
+    }
+  }
+
+  const onMessageEdited = (data: { messageId: string; body: string; editedAt: string }) => {
+    set({
+      messages: get().messages.map((m) =>
+        m.id === data.messageId ? { ...m, body: data.body, updatedAt: data.editedAt } : m,
+      ),
+    })
+  }
+
+  const onMessageDeleted = (data: { messageId: string }) => {
+    set({
+      messages: get().messages.filter((m) => m.id !== data.messageId),
+    })
+  }
+
+  const onTypingStart = (data: { userId: string; channelId?: string; dmId?: string }) => {
+    const roomKey = data.channelId || data.dmId || ''
+    const state = get()
+    const current = state.typingUsers[roomKey] || []
+    if (current.includes(data.userId)) return
+    set({ typingUsers: { ...state.typingUsers, [roomKey]: [...current, data.userId] } })
+  }
+
+  const onTypingStop = (data: { userId: string; channelId?: string; dmId?: string }) => {
+    const roomKey = data.channelId || data.dmId || ''
+    const state = get()
+    set({
+      typingUsers: {
+        ...state.typingUsers,
+        [roomKey]: (state.typingUsers[roomKey] || []).filter((u) => u !== data.userId),
+      },
+    })
+  }
+
+  socket.on('message:new', onMessageNew)
+  socket.on('message:edited', onMessageEdited)
+  socket.on('message:deleted', onMessageDeleted)
+  socket.on('typing:start', onTypingStart)
+  socket.on('typing:stop', onTypingStop)
+
+  // Return cleanup function
+  return () => {
+    socket.off('message:new', onMessageNew)
+    socket.off('message:edited', onMessageEdited)
+    socket.off('message:deleted', onMessageDeleted)
+    socket.off('typing:start', onTypingStart)
+    socket.off('typing:stop', onTypingStop)
+  }
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -108,49 +169,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setActiveDm: (dmId: string) => {
     set({ activeDmId: dmId, activeChannelId: null, messages: [] })
     get().fetchMessages(undefined, dmId)
-  },
-
-  setupSocketListeners: () => {
-    const socket = getSocket()
-
-    socket.on('message:new', (msg: Message) => {
-      const { activeChannelId, activeDmId } = get()
-      if (msg.channelId === activeChannelId || msg.dmId === activeDmId) {
-        set((state) => ({ messages: [...state.messages, msg] }))
-      }
-    })
-
-    socket.on('message:edited', (data: { messageId: string; body: string; editedAt: string }) => {
-      set((state) => ({
-        messages: state.messages.map((m) =>
-          m.id === data.messageId ? { ...m, body: data.body, updatedAt: data.editedAt } : m,
-        ),
-      }))
-    })
-
-    socket.on('message:deleted', (data: { messageId: string }) => {
-      set((state) => ({
-        messages: state.messages.filter((m) => m.id !== data.messageId),
-      }))
-    })
-
-    socket.on('typing:start', (data: { userId: string; channelId?: string; dmId?: string }) => {
-      const roomKey = data.channelId || data.dmId || ''
-      set((state) => {
-        const current = state.typingUsers[roomKey] || []
-        if (current.includes(data.userId)) return state
-        return { typingUsers: { ...state.typingUsers, [roomKey]: [...current, data.userId] } }
-      })
-    })
-
-    socket.on('typing:stop', (data: { userId: string; channelId?: string; dmId?: string }) => {
-      const roomKey = data.channelId || data.dmId || ''
-      set((state) => ({
-        typingUsers: {
-          ...state.typingUsers,
-          [roomKey]: (state.typingUsers[roomKey] || []).filter((u) => u !== data.userId),
-        },
-      }))
-    })
   },
 }))

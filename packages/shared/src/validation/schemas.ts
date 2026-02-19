@@ -38,7 +38,7 @@ const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 
 export const otpRequestSchema = z.object({
   phone: z.string().regex(PHONE_REGEX, 'Invalid phone number format'),
-  method: z.enum(['sms', 'email']),
+  method: z.enum(['sms', 'email']).default('sms'),
 });
 
 export const otpVerifySchema = z.object({

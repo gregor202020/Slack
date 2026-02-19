@@ -159,7 +159,7 @@ export async function announcementRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/announcements/:announcementId/acks — Get acknowledgement status
   // Available to: announcement owner, Admin, Super admin (spec Section 12.10)
   app.get('/:announcementId/acks', {
-    preHandler: [authenticate],
+    preHandler: [authenticate, requireRole('mid', 'admin', 'super_admin')],
     handler: async (request, reply) => {
       const { announcementId } = request.params as { announcementId: string }
       const result = await getAckDashboard(announcementId)

@@ -75,6 +75,15 @@ export default function DmMessagesScreen() {
     }
   }, [dmId, fetchMessages, setActiveDm])
 
+  // Clean up typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const handleSend = useCallback(async () => {
     if (!text.trim() || !dmId || isSending) return
     const messageText = text.trim()

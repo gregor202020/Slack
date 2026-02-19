@@ -41,38 +41,74 @@ export async function listDms(userId: string, cursor?: string, limit: number = 2
   const hasMore = baseRows.length > effectiveLimit
   const rows = hasMore ? baseRows.slice(0, effectiveLimit) : baseRows
 
-  // Fetch members and last message for each DM
-  const dmList = await Promise.all(
-    rows.map(async (dm) => {
-      const members = await db
-        .select({
-          userId: dmMembers.userId,
-          fullName: users.fullName,
-        })
-        .from(dmMembers)
-        .innerJoin(users, eq(dmMembers.userId, users.id))
-        .where(eq(dmMembers.dmId, dm.id))
+  if (rows.length === 0) {
+    return { dms: [], nextCursor: undefined }
+  }
 
-      const [lastMessage] = await db
-        .select({
-          body: messages.body,
-          createdAt: messages.createdAt,
-          userId: messages.userId,
-        })
-        .from(messages)
-        .where(and(eq(messages.dmId, dm.id), isNull(messages.deletedAt)))
-        .orderBy(desc(messages.createdAt))
-        .limit(1)
+  const dmIds = rows.map((r) => r.id)
 
-      return {
-        id: dm.id,
-        type: dm.type,
-        members,
-        lastMessage: lastMessage ?? undefined,
-        createdAt: dm.createdAt,
-      }
-    }),
-  )
+  // Batch fetch all members for all DMs in a single query
+  const allMembers = await db
+    .select({
+      dmId: dmMembers.dmId,
+      userId: dmMembers.userId,
+      fullName: users.fullName,
+    })
+    .from(dmMembers)
+    .innerJoin(users, eq(dmMembers.userId, users.id))
+    .where(inArray(dmMembers.dmId, dmIds))
+
+  // Batch fetch last messages for all DMs in a single query
+  const allRecentMessages = await db
+    .select({
+      dmId: messages.dmId,
+      body: messages.body,
+      createdAt: messages.createdAt,
+      userId: messages.userId,
+    })
+    .from(messages)
+    .where(
+      and(
+        inArray(messages.dmId, dmIds),
+        isNull(messages.deletedAt),
+        isNull(messages.parentMessageId),
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+
+  // Group members by dmId
+  const membersByDmId = new Map<string, typeof allMembers>()
+  for (const m of allMembers) {
+    const list = membersByDmId.get(m.dmId) ?? []
+    list.push(m)
+    membersByDmId.set(m.dmId, list)
+  }
+
+  // Group last messages by dmId (take only the first per DM)
+  const lastMessageByDmId = new Map<string, (typeof allRecentMessages)[0]>()
+  for (const msg of allRecentMessages) {
+    if (msg.dmId && !lastMessageByDmId.has(msg.dmId)) {
+      lastMessageByDmId.set(msg.dmId, msg)
+    }
+  }
+
+  // Assemble the DM list
+  const dmList = rows.map((dm) => {
+    const members = (membersByDmId.get(dm.id) ?? []).map((m) => ({
+      userId: m.userId,
+      fullName: m.fullName,
+    }))
+    const lastMsg = lastMessageByDmId.get(dm.id)
+    return {
+      id: dm.id,
+      type: dm.type,
+      members,
+      lastMessage: lastMsg
+        ? { body: lastMsg.body, createdAt: lastMsg.createdAt, userId: lastMsg.userId }
+        : undefined,
+      createdAt: dm.createdAt,
+    }
+  })
 
   const nextCursor = hasMore ? rows[rows.length - 1]?.createdAt?.toISOString() : undefined
 

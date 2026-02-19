@@ -15,6 +15,13 @@
       "when": 1771539289317,
       "tag": "0001_narrow_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771541055254,
+      "tag": "0002_free_scourge",
+      "breakpoints": true
     }
   ]
 }
