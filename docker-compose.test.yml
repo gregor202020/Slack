@@ -1,0 +1,40 @@
+# Test compose — isolated infrastructure for running tests
+# Usage: docker compose -f docker-compose.test.yml up -d
+#
+# Uses different ports and container names to avoid conflicts with dev.
+
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smoker-test-postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: smoker
+      POSTGRES_PASSWORD: smoker_dev
+      POSTGRES_DB: smoker_test
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U smoker']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: smoker-test-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  test_postgres_data:

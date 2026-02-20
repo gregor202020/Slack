@@ -1,0 +1,48 @@
+.PHONY: dev infra infra-down db-setup db-seed build test e2e up down clean
+
+# Start infrastructure (postgres, redis, minio)
+infra:
+	docker compose -f docker-compose.dev.yml up -d
+
+# Stop infrastructure
+infra-down:
+	docker compose -f docker-compose.dev.yml down
+
+# Run database migrations + seed
+db-setup: infra
+	npm run db:migrate
+	npm run db:seed
+
+# Just seed the database
+db-seed:
+	npm run db:seed
+
+# Start full dev environment (infra + apps)
+dev: infra
+	npm run dev
+
+# Build all packages
+build:
+	npm run build
+
+# Run tests
+test:
+	npm run test
+
+# Run E2E tests
+e2e:
+	npx playwright test --project=chromium
+
+# Build and run full stack with Docker
+up:
+	docker compose up --build -d
+
+# Stop full stack
+down:
+	docker compose down
+
+# Full clean (remove volumes too)
+clean:
+	docker compose down -v
+	docker compose -f docker-compose.dev.yml down -v
+	docker compose -f docker-compose.test.yml down -v

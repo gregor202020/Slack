@@ -1,8 +1,12 @@
 node_modules
-.next
-dist
+.git
 .env
 .env.local
-*.log
-.git
+*.md
 .turbo
+dist
+.next
+apps/mobile
+coverage
+test-results
+playwright-report

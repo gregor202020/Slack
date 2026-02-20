@@ -31,5 +31,72 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: smoker-minio
+    restart: unless-stopped
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: smoker-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://smoker:smoker_dev@postgres:5432/smoker
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: docker-dev-jwt-secret-change-in-production
+      JWT_ACCESS_EXPIRY: 900
+      JWT_REFRESH_EXPIRY: 604800
+      ENCRYPTION_KEY: docker-dev-encryption-key-change-in-prod
+      API_URL: http://localhost:4000
+      WEB_URL: http://localhost:3000
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: smoker-files
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_FILE_DOMAIN: http://localhost:9000/smoker-files
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    container_name: smoker-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '3000:3000'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+
 volumes:
   postgres_data:
+  minio_data:
