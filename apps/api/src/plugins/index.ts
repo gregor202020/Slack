@@ -17,6 +17,7 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyCsrfProtection from '@fastify/csrf-protection';
 import fastifyMultipart from '@fastify/multipart';
 import { getConfig } from '../lib/config.js';
+import { getRedis } from '../lib/redis.js';
 
 export async function registerPlugins(app: FastifyInstance): Promise<void> {
   const config = getConfig();
@@ -64,6 +65,7 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
     timeWindow: '1 minute',
     // Allow custom per-route overrides via routeConfig
     allowList: [],
+    redis: getRedis(),
   });
 
   // Cookie — secure settings for refresh token storage (spec Section 3.4)

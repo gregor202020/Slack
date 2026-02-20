@@ -16,6 +16,7 @@ import { buildApp } from './app.js'
 import { initializeSocketIO } from './plugins/socket.js'
 import { initFirebase } from './plugins/firebase.js'
 import { installGlobalErrorHandlers } from './lib/error-tracker.js'
+import { closeRedis } from './lib/redis.js'
 
 async function main(): Promise<void> {
   // Load and validate config first
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
     try {
       // Close the Fastify server (stops accepting new connections)
       await app.close()
+      await closeRedis()
       app.log.info('Server closed successfully')
       process.exit(0)
     } catch (err) {

@@ -1,4 +1,4 @@
-.PHONY: dev infra infra-down db-setup db-seed build test e2e up down clean
+.PHONY: dev infra infra-down db-setup db-seed build test e2e up down clean nginx nginx-down load-smoke load-test load-stress
 
 # Start infrastructure (postgres, redis, minio)
 infra:
@@ -40,6 +40,24 @@ up:
 # Stop full stack
 down:
 	docker compose down
+
+# Start dev nginx proxy
+nginx:
+	docker compose -f docker-compose.dev.yml up -d nginx
+
+# Stop dev nginx
+nginx-down:
+	docker compose -f docker-compose.dev.yml stop nginx
+
+# Load testing
+load-smoke:
+	k6 run load-tests/smoke.js
+
+load-test:
+	k6 run load-tests/load.js
+
+load-stress:
+	k6 run load-tests/stress.js
 
 # Full clean (remove volumes too)
 clean:

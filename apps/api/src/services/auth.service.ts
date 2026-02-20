@@ -4,8 +4,7 @@
  * Handles OTP-based authentication: requesting codes, verifying them,
  * issuing JWT tokens, refreshing sessions, and logout/force-logout.
  *
- * OTP codes are stored in an in-memory Map with automatic expiry.
- * TODO: Replace in-memory OTP store with Redis for multi-server deployments.
+ * OTP codes are stored in Redis with automatic TTL-based expiry.
  */
 
 import { timingSafeEqual } from 'node:crypto'
@@ -31,31 +30,16 @@ import {
 } from '../lib/errors.js'
 import { getConfig } from '../lib/config.js'
 import { logger } from '../lib/logger.js'
+import { getRedis } from '../lib/redis.js'
 
 // ---------------------------------------------------------------------------
-// In-memory OTP store (replace with Redis for multi-server deployments)
+// Redis OTP key helpers
 // ---------------------------------------------------------------------------
 
-interface OtpEntry {
-  hash: string
-  expiresAt: number
+// OTP keys in Redis use the pattern: otp:{phoneHash}
+function otpKey(phoneHash: string): string {
+  return `otp:${phoneHash}`
 }
-
-const otpStore = new Map<string, OtpEntry>()
-
-/** Remove expired entries from the in-memory OTP store. */
-function cleanExpiredOtps(): void {
-  const now = Date.now()
-  for (const [key, entry] of otpStore) {
-    if (entry.expiresAt <= now) {
-      otpStore.delete(key)
-    }
-  }
-}
-
-// Periodically clean expired OTPs every 60 seconds
-const OTP_CLEANUP_INTERVAL = 60_000
-setInterval(cleanExpiredOtps, OTP_CLEANUP_INTERVAL).unref()
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -123,10 +107,8 @@ export async function requestOtp(
   const otp = generateOtp()
   const otpHash = hashToken(otp)
 
-  otpStore.set(phoneHash, {
-    hash: otpHash,
-    expiresAt: Date.now() + OTP_EXPIRY_MS,
-  })
+  const redis = getRedis()
+  await redis.set(otpKey(phoneHash), otpHash, 'PX', OTP_EXPIRY_MS)
 
   // Record the OTP request attempt
   await db.insert(otpAttempts).values({
@@ -205,11 +187,11 @@ export async function verifyOtp(
     throw accountLockedError(user.lockedUntil)
   }
 
-  // Check in-memory OTP store for a valid (non-expired) entry
-  const storedOtp = otpStore.get(phoneHash)
+  // Check Redis for a valid OTP entry (TTL handles expiry automatically)
+  const redis = getRedis()
+  const storedHash = await redis.get(otpKey(phoneHash))
 
-  if (!storedOtp || storedOtp.expiresAt <= Date.now()) {
-    otpStore.delete(phoneHash)
+  if (!storedHash) {
     throw otpExpiredError()
   }
 
@@ -234,7 +216,7 @@ export async function verifyOtp(
   // Compare hashes using timing-safe comparison to prevent timing attacks
   const providedHash = hashToken(code)
 
-  if (!timingSafeEqual(Buffer.from(providedHash, 'hex'), Buffer.from(storedOtp.hash, 'hex'))) {
+  if (!timingSafeEqual(Buffer.from(providedHash, 'hex'), Buffer.from(storedHash, 'hex'))) {
     // Record failed verification attempt
     await db.insert(otpAttempts).values({
       phoneHash,
@@ -282,7 +264,7 @@ export async function verifyOtp(
   }
 
   // OTP is correct -- clean up the stored entry
-  otpStore.delete(phoneHash)
+  await redis.del(otpKey(phoneHash))
 
   // Record successful verification attempt
   await db.insert(otpAttempts).values({

@@ -203,9 +203,14 @@ export async function buildApp(): Promise<FastifyInstance> {
       dbOk = false
     }
 
-    // Redis connectivity check (placeholder — no Redis client imported yet)
-    // When Redis is added, replace with: await redis.ping()
-    redisOk = true
+    // Redis connectivity check
+    try {
+      const { getRedis } = await import('./lib/redis.js')
+      await getRedis().ping()
+      redisOk = true
+    } catch {
+      redisOk = false
+    }
 
     const status = dbOk ? 'ok' : 'degraded'
 
@@ -243,10 +248,21 @@ export async function buildApp(): Promise<FastifyInstance> {
       dbOk = false
     }
 
+    // Redis connectivity check
+    let redisOk = false
+    try {
+      const { getRedis } = await import('./lib/redis.js')
+      await getRedis().ping()
+      redisOk = true
+    } catch {
+      redisOk = false
+    }
+
     return {
       ...metrics,
       websockets: { activeConnections: wsConnections },
       database: { connected: dbOk },
+      redis: { connected: redisOk },
     }
   })
 

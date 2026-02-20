@@ -13,7 +13,10 @@
     "db:migrate": "turbo run db:migrate --filter=@smoker/db",
     "db:seed": "turbo run db:seed --filter=@smoker/db",
     "db:studio": "turbo run db:studio --filter=@smoker/db",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "load:smoke": "k6 run load-tests/smoke.js",
+    "load:test": "k6 run load-tests/load.js",
+    "load:stress": "k6 run load-tests/stress.js"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

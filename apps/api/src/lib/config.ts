@@ -40,6 +40,9 @@ export interface AppConfig {
   // Database
   databaseUrl: string;
 
+  // Redis
+  redisUrl: string;
+
   // JWT
   jwtSecret: string;
   jwtAccessExpiry: number;
@@ -82,6 +85,8 @@ export function loadConfig(): AppConfig {
     isDevelopment: nodeEnv === 'development',
 
     databaseUrl: required('DATABASE_URL'),
+
+    redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
 
     jwtSecret: required('JWT_SECRET'),
     jwtAccessExpiry: optionalInt('JWT_ACCESS_EXPIRY', 900),

@@ -56,6 +56,15 @@ services:
       timeout: 5s
       retries: 5
 
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: smoker-dev-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+
 volumes:
   postgres_data:
   minio_data:
