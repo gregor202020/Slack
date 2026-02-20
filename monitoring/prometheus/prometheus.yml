@@ -1,0 +1,22 @@
+# Prometheus configuration for The Smoker
+# Scrapes the Fastify API metrics endpoint.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Scrape the Fastify API Prometheus metrics endpoint.
+  # In dev the API runs on the host machine (not in Docker),
+  # so we use host.docker.internal to reach it.
+  - job_name: 'smoker-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:4000']
+        labels:
+          service: 'api'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

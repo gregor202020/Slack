@@ -30,3 +30,9 @@ build/
 
 # Test
 coverage/
+
+# Database backups
+backups/*.dump
+backups/*.dump.gz
+backups/*.sql
+backups/*.sql.gz

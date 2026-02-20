@@ -9,6 +9,8 @@
 
 import { Server as SocketIOServer } from 'socket.io'
 import type { Server as HTTPServer } from 'node:http'
+import { createAdapter } from '@socket.io/redis-adapter'
+import Redis from 'ioredis'
 import { getConfig } from '../lib/config.js'
 import { verifyToken } from '../lib/jwt.js'
 import { db, channelMembers, dmMembers, dms, userSessions } from '@smoker/db'
@@ -17,6 +19,8 @@ import { logger } from '../lib/logger.js'
 
 let io: SocketIOServer | null = null
 let revalidationInterval: ReturnType<typeof setInterval> | null = null
+let adapterPubClient: Redis | null = null
+let adapterSubClient: Redis | null = null
 
 /** Track online user IDs for presence */
 const onlineUsers = new Set<string>()
@@ -44,6 +48,26 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
     pingInterval: 25000,
     pingTimeout: 20000,
   });
+
+  // Redis adapter for cross-instance broadcasting (dedicated pub/sub connections)
+  adapterPubClient = new Redis(config.redisUrl, {
+    maxRetriesPerRequest: 3,
+    retryStrategy(times) {
+      return Math.min(times * 200, 2000)
+    },
+    lazyConnect: false,
+  })
+  adapterSubClient = adapterPubClient.duplicate()
+
+  adapterPubClient.on('error', (err) => {
+    logger.error({ err }, 'Socket.io Redis adapter pub client error')
+  })
+  adapterSubClient.on('error', (err) => {
+    logger.error({ err }, 'Socket.io Redis adapter sub client error')
+  })
+
+  io.adapter(createAdapter(adapterPubClient, adapterSubClient))
+  logger.info('Socket.io Redis adapter attached')
 
   // Auth middleware — verify access token on handshake (spec Section 8.2)
   io.use(async (socket, next) => {
@@ -312,7 +336,7 @@ export function getOnlineUsers(): ReadonlySet<string> {
 /**
  * Shut down the Socket.io server and clean up the revalidation interval.
  */
-export function shutdownSocketIO(): void {
+export async function shutdownSocketIO(): Promise<void> {
   if (revalidationInterval) {
     clearInterval(revalidationInterval)
     revalidationInterval = null
@@ -321,5 +345,13 @@ export function shutdownSocketIO(): void {
   if (io) {
     io.close()
     io = null
+  }
+  if (adapterPubClient) {
+    await adapterPubClient.quit()
+    adapterPubClient = null
+  }
+  if (adapterSubClient) {
+    await adapterSubClient.quit()
+    adapterSubClient = null
   }
 }

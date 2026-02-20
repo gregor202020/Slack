@@ -19,7 +19,7 @@ import { registerRoutes } from './routes/index.js'
 import { AppError, ValidationError, InternalError } from './lib/errors.js'
 import { getConfig } from './lib/config.js'
 import { setLogger } from './lib/logger.js'
-import { recordRequest, getMetrics } from './lib/metrics.js'
+import { recordRequest, recordPrometheusRequest, getMetrics, getPrometheusMetrics } from './lib/metrics.js'
 import { trackError } from './lib/error-tracker.js'
 import { sql as pgSql } from '@smoker/db'
 
@@ -77,8 +77,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     const responseTime = reply.elapsedTime
     const userId = request.user?.id
 
-    // Track in-memory metrics
+    // Track in-memory metrics (legacy JSON + Prometheus)
     recordRequest(responseTime)
+    recordPrometheusRequest(
+      request.method,
+      request.routeOptions?.url ?? request.url,
+      reply.statusCode,
+      responseTime / 1000,
+    )
 
     const logPayload = {
       method: request.method,
@@ -264,6 +270,43 @@ export async function buildApp(): Promise<FastifyInstance> {
       database: { connected: dbOk },
       redis: { connected: redisOk },
     }
+  })
+
+  // --- Prometheus metrics endpoint ---
+  app.get('/metrics', async (_request, reply) => {
+    // Collect runtime state for Prometheus output
+    let wsConnections = 0
+    try {
+      const { getIO } = await import('./plugins/socket.js')
+      const io = getIO()
+      const sockets = await io.fetchSockets()
+      wsConnections = sockets.length
+    } catch {
+      // Socket.io not yet initialized
+    }
+
+    let dbConnected = false
+    try {
+      await pgSql`SELECT 1`
+      dbConnected = true
+    } catch {
+      // db unreachable
+    }
+
+    let redisConnected = false
+    try {
+      const { getRedis } = await import('./lib/redis.js')
+      await getRedis().ping()
+      redisConnected = true
+    } catch {
+      // redis unreachable
+    }
+
+    const body = getPrometheusMetrics({ wsConnections, dbConnected, redisConnected })
+
+    return reply
+      .header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+      .send(body)
   })
 
   // --- CSP violation report endpoint (spec Section 16.10) ---
