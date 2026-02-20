@@ -10,6 +10,23 @@ interface User {
   orgRole: string
   avatarUrl: string | null
   status: string
+  bio?: string | null
+  timezone?: string
+  theme?: string
+  notificationSound?: boolean
+  notificationDesktop?: boolean
+}
+
+interface ProfileUpdate {
+  displayName?: string
+  bio?: string
+  timezone?: string
+}
+
+interface PreferencesUpdate {
+  theme?: string
+  notificationSound?: boolean
+  notificationDesktop?: boolean
 }
 
 interface AuthState {
@@ -21,6 +38,8 @@ interface AuthState {
   verifyOtp: (phone: string, code: string) => Promise<{ needsOnboarding: boolean }>
   fetchMe: () => Promise<void>
   logout: () => Promise<void>
+  updateProfile: (data: ProfileUpdate) => Promise<void>
+  updatePreferences: (data: PreferencesUpdate) => Promise<void>
 }
 
 let fetchMePromise: Promise<void> | null = null
@@ -93,5 +112,25 @@ export const useAuthStore = create<AuthState>((set) => ({
     setAccessToken(null)
     disconnectSocket()
     set({ user: null, isAuthenticated: false, isLoading: false })
+  },
+
+  updateProfile: async (data: ProfileUpdate) => {
+    const updated = await api<User>('/api/users/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+    set((state) => ({
+      user: state.user ? { ...state.user, ...updated } : null,
+    }))
+  },
+
+  updatePreferences: async (data: PreferencesUpdate) => {
+    const updated = await api<User>('/api/users/me/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+    set((state) => ({
+      user: state.user ? { ...state.user, ...updated } : null,
+    }))
   },
 }))

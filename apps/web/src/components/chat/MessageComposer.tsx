@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast'
 import { getSocket } from '@/lib/socket'
 import { api } from '@/lib/api'
 import { MAX_MESSAGE_LENGTH, MAX_FILE_SIZE_BYTES, BLOCKED_FILE_EXTENSIONS } from '@smoker/shared'
+import { MentionAutocomplete } from './MentionAutocomplete'
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -33,9 +34,13 @@ export function MessageComposer() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null)
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const toast = useToast()
 
   // Clean up typing timeout on unmount
@@ -58,13 +63,58 @@ export function MessageComposer() {
   }, [activeChannelId, activeDmId])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setBody(e.target.value)
+    const value = e.target.value
+    setBody(value)
+
+    // Mention detection: look for @ followed by word characters before the cursor
+    const cursorPos = e.target.selectionStart ?? value.length
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const mentionMatch = textBeforeCursor.match(/@([a-zA-Z0-9_]*)$/)
+
+    if (mentionMatch) {
+      setShowMentions(true)
+      setMentionQuery(mentionMatch[1] ?? '')
+      setMentionStartIndex(mentionMatch.index ?? null)
+    } else {
+      setShowMentions(false)
+      setMentionQuery('')
+      setMentionStartIndex(null)
+    }
 
     // Typing indicator
     emitTyping(true)
     if (typingTimeout.current) clearTimeout(typingTimeout.current)
     typingTimeout.current = setTimeout(() => emitTyping(false), 2000)
   }
+
+  const handleMentionSelect = useCallback((handle: string) => {
+    if (mentionStartIndex === null) return
+
+    const before = body.slice(0, mentionStartIndex)
+    const cursorPos = textareaRef.current?.selectionStart ?? body.length
+    const after = body.slice(cursorPos)
+
+    const newBody = `${before}@${handle} ${after}`
+    setBody(newBody)
+    setShowMentions(false)
+    setMentionQuery('')
+    setMentionStartIndex(null)
+
+    // Re-focus the textarea and set cursor after the mention
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const newCursorPos = before.length + handle.length + 2 // @handle + space
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+      }
+    })
+  }, [body, mentionStartIndex])
+
+  const handleMentionClose = useCallback(() => {
+    setShowMentions(false)
+    setMentionQuery('')
+    setMentionStartIndex(null)
+  }, [])
 
   const isOverLimit = body.length > MAX_MESSAGE_LENGTH
   const showCharCount = body.length > MAX_MESSAGE_LENGTH - 500
@@ -206,6 +256,15 @@ export function MessageComposer() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Let MentionAutocomplete handle keyboard events when visible
+    if (showMentions && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab' || e.key === 'Escape')) {
+      // These are handled by the MentionAutocomplete component's document listener
+      return
+    }
+    if (showMentions && e.key === 'Enter') {
+      // Let MentionAutocomplete handle Enter for selection
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
@@ -263,44 +322,56 @@ export function MessageComposer() {
         </div>
       )}
 
-      <div className="flex items-end gap-2 rounded-lg bg-smoke-700 border border-smoke-600 p-2">
-        {/* Attach button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isDisabled || isSending}
-          className="shrink-0 p-1.5 rounded-md text-smoke-400 hover:text-smoke-200 hover:bg-smoke-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          title="Attach file"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          onChange={handleFileInputChange}
-          className="hidden"
-        />
+      <div className="relative">
+        {/* Mention autocomplete popup */}
+        {showMentions && (
+          <MentionAutocomplete
+            query={mentionQuery}
+            onSelect={handleMentionSelect}
+            onClose={handleMentionClose}
+          />
+        )}
 
-        <textarea
-          value={body}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={isDisabled ? 'Select a conversation' : 'Type a message...'}
-          disabled={isDisabled}
-          maxLength={MAX_MESSAGE_LENGTH}
-          rows={1}
-          className="flex-1 bg-transparent text-sm text-smoke-100 placeholder:text-smoke-400 resize-none focus:outline-none min-h-[36px] max-h-32"
-        />
-        <button
-          onClick={handleSubmit}
-          disabled={(!body.trim() && !selectedFile) || isSending || isDisabled || isOverLimit}
-          className="shrink-0 p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </button>
+        <div className="flex items-end gap-2 rounded-lg bg-smoke-700 border border-smoke-600 p-2">
+          {/* Attach button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isDisabled || isSending}
+            className="shrink-0 p-1.5 rounded-md text-smoke-400 hover:text-smoke-200 hover:bg-smoke-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Attach file"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileInputChange}
+            className="hidden"
+          />
+
+          <textarea
+            ref={textareaRef}
+            value={body}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={isDisabled ? 'Select a conversation' : 'Type a message...'}
+            disabled={isDisabled}
+            maxLength={MAX_MESSAGE_LENGTH}
+            rows={1}
+            className="flex-1 bg-transparent text-sm text-smoke-100 placeholder:text-smoke-400 resize-none focus:outline-none min-h-[36px] max-h-32"
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={(!body.trim() && !selectedFile) || isSending || isDisabled || isOverLimit}
+            className="shrink-0 p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </button>
+        </div>
       </div>
       {showCharCount && (
         <p className={`text-xs mt-1 text-right ${isOverLimit ? 'text-error' : 'text-smoke-400'}`}>

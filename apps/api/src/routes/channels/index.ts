@@ -27,6 +27,11 @@ import {
   updateNotificationPref,
   updateChannelSettings,
 } from '../../services/channel.service.js'
+import {
+  pinMessage,
+  unpinMessage,
+  listPinnedMessages,
+} from '../../services/pin.service.js'
 
 // ---------------------------------------------------------------------------
 // Inline Zod schemas
@@ -48,6 +53,10 @@ const notificationPrefSchema = z.object({
 const channelSettingsSchema = z.object({
   isDefault: z.boolean().optional(),
   isMandatory: z.boolean().optional(),
+})
+
+const pinMessageSchema = z.object({
+  messageId: z.string().uuid(),
 })
 
 // ---------------------------------------------------------------------------
@@ -262,41 +271,38 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
     },
   })
 
-  // --- Pin messages (TODO: requires schema changes) ---
+  // --- Pin messages ---
 
   // POST /api/channels/:channelId/pins — Pin a message
   app.post('/:channelId/pins', {
-    preHandler: [authenticate, requireChannelMembership('channelId')],
-    handler: async (_request, reply) => {
-      // TODO: Implement once pinned_messages table or pinnedAt/pinnedBy columns are added
-      return reply.status(501).send({
-        error: 'NOT_IMPLEMENTED',
-        message: 'Pin message is not yet implemented. Requires schema changes.',
-      })
+    preHandler: [authenticate, requireChannelMembership('channelId'), validateBody(pinMessageSchema)],
+    handler: async (request, reply) => {
+      const { id } = request.user!
+      const { channelId } = request.params as { channelId: string }
+      const { messageId } = request.body as { messageId: string }
+      const pin = await pinMessage(channelId, messageId, id)
+      return reply.status(201).send(pin)
     },
   })
 
   // DELETE /api/channels/:channelId/pins/:messageId — Unpin a message
   app.delete('/:channelId/pins/:messageId', {
     preHandler: [authenticate, requireChannelMembership('channelId')],
-    handler: async (_request, reply) => {
-      // TODO: Implement once pinned_messages table or pinnedAt/pinnedBy columns are added
-      return reply.status(501).send({
-        error: 'NOT_IMPLEMENTED',
-        message: 'Unpin message is not yet implemented. Requires schema changes.',
-      })
+    handler: async (request, reply) => {
+      const { id } = request.user!
+      const { channelId, messageId } = request.params as { channelId: string; messageId: string }
+      const result = await unpinMessage(channelId, messageId, id)
+      return reply.status(200).send(result)
     },
   })
 
   // GET /api/channels/:channelId/pins — List pinned messages
   app.get('/:channelId/pins', {
     preHandler: [authenticate, requireChannelMembership('channelId')],
-    handler: async (_request, reply) => {
-      // TODO: Implement once pinned_messages table or pinnedAt/pinnedBy columns are added
-      return reply.status(501).send({
-        error: 'NOT_IMPLEMENTED',
-        message: 'List pinned messages is not yet implemented. Requires schema changes.',
-      })
+    handler: async (request, reply) => {
+      const { channelId } = request.params as { channelId: string }
+      const pins = await listPinnedMessages(channelId)
+      return reply.status(200).send(pins)
     },
   })
 }

@@ -16,6 +16,8 @@ import {
   MAX_CHANNEL_TOPIC_LENGTH,
   MAX_API_KEY_NAME_LENGTH,
   MAX_GROUP_DM_MEMBERS,
+  MAX_DISPLAY_NAME_LENGTH,
+  MAX_BIO_LENGTH,
   OTP_LENGTH,
 } from '../constants/limits';
 
@@ -68,6 +70,22 @@ export const updateProfileSchema = z.object({
   positionId: z.string().uuid('Invalid position ID').optional(),
   timezone: z.string().min(1).optional(),
   quietHoursEnabled: z.boolean().optional(),
+});
+
+export const updateUserProfileSchema = z.object({
+  displayName: z.string().max(MAX_DISPLAY_NAME_LENGTH).trim().optional(),
+  bio: z.string().max(MAX_BIO_LENGTH).trim().optional(),
+  timezone: z.string().min(1).optional(),
+});
+
+export const updatePreferencesSchema = z.object({
+  theme: z.enum(['dark', 'light']).optional(),
+  notificationSound: z.boolean().optional(),
+  notificationDesktop: z.boolean().optional(),
+});
+
+export const avatarUploadSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
 });
 
 // ---------------------------------------------------------------------------

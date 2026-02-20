@@ -45,7 +45,13 @@ export const users = pgTable(
     positionId: uuid('position_id').references(() => positions.id, {
       onDelete: 'set null',
     }),
+    avatarUrl: text('avatar_url'),
+    displayName: varchar('display_name', { length: 80 }),
+    bio: text('bio'),
     timezone: varchar('timezone', { length: 50 }).default('UTC').notNull(),
+    theme: varchar('theme', { length: 10 }).default('dark').notNull(),
+    notificationSound: boolean('notification_sound').default(true).notNull(),
+    notificationDesktop: boolean('notification_desktop').default(true).notNull(),
     orgRole: varchar('org_role', { length: 20 }).default('basic').notNull(),
     status: varchar('status', { length: 20 }).default('active').notNull(),
     signupAt: timestamp('signup_at', { withTimezone: true, mode: 'date' }),

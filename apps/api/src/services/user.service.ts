@@ -8,7 +8,14 @@
 
 import { eq, and, desc, count, isNull, ne, sql } from 'drizzle-orm'
 import { db, users, userSessions, positions, userVenues, venues } from '@smoker/db'
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { logAudit } from '../lib/audit.js'
+import { getConfig } from '../lib/config.js'
 import {
   NotFoundError,
   ForbiddenError,
@@ -21,6 +28,31 @@ import {
 import { forceLogoutUser } from './auth.service.js'
 import { canManageRole, type OrgRole } from '../middleware/roles.js'
 import { logger } from '../lib/logger.js'
+
+// ---------------------------------------------------------------------------
+// S3 client (lazy singleton)
+// ---------------------------------------------------------------------------
+
+let _s3: S3Client | null = null
+
+function getS3Client(): S3Client {
+  if (_s3) return _s3
+
+  const config = getConfig()
+  _s3 = new S3Client({
+    endpoint: config.s3Endpoint,
+    region: config.s3Region,
+    credentials: {
+      accessKeyId: config.s3AccessKey,
+      secretAccessKey: config.s3SecretKey,
+    },
+    forcePathStyle: true,
+  })
+
+  return _s3
+}
+
+const AVATAR_UPLOAD_EXPIRY_SECONDS = 300
 
 // ---------------------------------------------------------------------------
 // 1. listUsers
@@ -137,7 +169,13 @@ export async function getMe(userId: string): Promise<{
   address: string | null
   positionId: string | null
   positionName: string | null
+  avatarUrl: string | null
+  displayName: string | null
+  bio: string | null
   timezone: string
+  theme: string
+  notificationSound: boolean
+  notificationDesktop: boolean
   orgRole: string
   status: string
   quietHoursEnabled: boolean
@@ -153,7 +191,13 @@ export async function getMe(userId: string): Promise<{
       address: users.address,
       positionId: users.positionId,
       positionName: positions.name,
+      avatarUrl: users.avatarUrl,
+      displayName: users.displayName,
+      bio: users.bio,
       timezone: users.timezone,
+      theme: users.theme,
+      notificationSound: users.notificationSound,
+      notificationDesktop: users.notificationDesktop,
       orgRole: users.orgRole,
       status: users.status,
       quietHoursEnabled: users.quietHoursEnabled,
@@ -188,7 +232,13 @@ export async function getMe(userId: string): Promise<{
     address: user.address,
     positionId: user.positionId,
     positionName: user.positionName ?? null,
+    avatarUrl: user.avatarUrl,
+    displayName: user.displayName,
+    bio: user.bio,
     timezone: user.timezone,
+    theme: user.theme,
+    notificationSound: user.notificationSound,
+    notificationDesktop: user.notificationDesktop,
     orgRole: user.orgRole,
     status: user.status,
     quietHoursEnabled: user.quietHoursEnabled,
@@ -222,7 +272,13 @@ export async function getUserById(
       address: users.address,
       positionId: users.positionId,
       positionName: positions.name,
+      avatarUrl: users.avatarUrl,
+      displayName: users.displayName,
+      bio: users.bio,
       timezone: users.timezone,
+      theme: users.theme,
+      notificationSound: users.notificationSound,
+      notificationDesktop: users.notificationDesktop,
       orgRole: users.orgRole,
       status: users.status,
       quietHoursEnabled: users.quietHoursEnabled,
@@ -255,7 +311,13 @@ export async function getUserById(
       address: user.address,
       positionId: user.positionId,
       positionName: user.positionName ?? null,
+      avatarUrl: user.avatarUrl,
+      displayName: user.displayName,
+      bio: user.bio,
       timezone: user.timezone,
+      theme: user.theme,
+      notificationSound: user.notificationSound,
+      notificationDesktop: user.notificationDesktop,
       orgRole: user.orgRole,
       status: user.status,
       quietHoursEnabled: user.quietHoursEnabled,
@@ -267,6 +329,9 @@ export async function getUserById(
   return {
     id: user.id,
     fullName: user.fullName,
+    avatarUrl: user.avatarUrl,
+    displayName: user.displayName,
+    bio: user.bio,
     orgRole: user.orgRole,
     status: user.status,
     positionName: user.positionName ?? null,
@@ -329,7 +394,13 @@ export async function updateProfile(
     email: updated.email,
     address: updated.address,
     positionId: updated.positionId,
+    avatarUrl: updated.avatarUrl,
+    displayName: updated.displayName,
+    bio: updated.bio,
     timezone: updated.timezone,
+    theme: updated.theme,
+    notificationSound: updated.notificationSound,
+    notificationDesktop: updated.notificationDesktop,
     orgRole: updated.orgRole,
     status: updated.status,
     quietHoursEnabled: updated.quietHoursEnabled,
@@ -662,4 +733,249 @@ export async function unlockUser(
   })
 
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// 12. updateUserProfile (displayName, bio, timezone)
+// ---------------------------------------------------------------------------
+
+export async function updateUserProfile(
+  userId: string,
+  data: Partial<{
+    displayName: string
+    bio: string
+    timezone: string
+  }>,
+  ipAddress: string,
+  userAgent: string,
+): Promise<Record<string, unknown>> {
+  const updateData: Record<string, unknown> = {
+    updatedAt: new Date(),
+  }
+
+  if (data.displayName !== undefined) updateData.displayName = data.displayName
+  if (data.bio !== undefined) updateData.bio = data.bio
+  if (data.timezone !== undefined) updateData.timezone = data.timezone
+
+  const [updated] = await db
+    .update(users)
+    .set(updateData)
+    .where(eq(users.id, userId))
+    .returning()
+
+  if (!updated) {
+    throw new NotFoundError('User not found', 'USER_NOT_FOUND')
+  }
+
+  await logAudit({
+    actorId: userId,
+    actorType: 'user',
+    action: 'user.profile_updated',
+    targetType: 'user',
+    targetId: userId,
+    metadata: { updatedFields: Object.keys(data) },
+    ipAddress,
+    userAgent,
+  })
+
+  return {
+    id: updated.id,
+    phone: updated.phone,
+    fullName: updated.fullName,
+    email: updated.email,
+    avatarUrl: updated.avatarUrl,
+    displayName: updated.displayName,
+    bio: updated.bio,
+    timezone: updated.timezone,
+    theme: updated.theme,
+    notificationSound: updated.notificationSound,
+    notificationDesktop: updated.notificationDesktop,
+    orgRole: updated.orgRole,
+    status: updated.status,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 13. updatePreferences (theme, notificationSound, notificationDesktop)
+// ---------------------------------------------------------------------------
+
+export async function updatePreferences(
+  userId: string,
+  data: Partial<{
+    theme: string
+    notificationSound: boolean
+    notificationDesktop: boolean
+  }>,
+  ipAddress: string,
+  userAgent: string,
+): Promise<Record<string, unknown>> {
+  const updateData: Record<string, unknown> = {
+    updatedAt: new Date(),
+  }
+
+  if (data.theme !== undefined) updateData.theme = data.theme
+  if (data.notificationSound !== undefined) updateData.notificationSound = data.notificationSound
+  if (data.notificationDesktop !== undefined) updateData.notificationDesktop = data.notificationDesktop
+
+  const [updated] = await db
+    .update(users)
+    .set(updateData)
+    .where(eq(users.id, userId))
+    .returning()
+
+  if (!updated) {
+    throw new NotFoundError('User not found', 'USER_NOT_FOUND')
+  }
+
+  await logAudit({
+    actorId: userId,
+    actorType: 'user',
+    action: 'user.preferences_updated',
+    targetType: 'user',
+    targetId: userId,
+    metadata: { updatedFields: Object.keys(data) },
+    ipAddress,
+    userAgent,
+  })
+
+  return {
+    theme: updated.theme,
+    notificationSound: updated.notificationSound,
+    notificationDesktop: updated.notificationDesktop,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 14. getAvatarUploadUrl — presigned S3 URL for avatar upload
+// ---------------------------------------------------------------------------
+
+export async function getAvatarUploadUrl(
+  userId: string,
+  contentType: string,
+): Promise<{ uploadUrl: string; avatarUrl: string }> {
+  const config = getConfig()
+  const s3 = getS3Client()
+
+  const ext = contentType === 'image/png' ? 'png'
+    : contentType === 'image/webp' ? 'webp'
+    : contentType === 'image/gif' ? 'gif'
+    : 'jpg'
+
+  const s3Key = `avatars/${userId}/${Date.now()}.${ext}`
+
+  const command = new PutObjectCommand({
+    Bucket: config.s3Bucket,
+    Key: s3Key,
+    ContentType: contentType,
+  })
+
+  const uploadUrl = await getSignedUrl(s3, command, {
+    expiresIn: AVATAR_UPLOAD_EXPIRY_SECONDS,
+  })
+
+  const avatarUrl = `${config.s3FileDomain}/${s3Key}`
+
+  // Save the avatar URL immediately — the client will upload to the presigned URL
+  await db
+    .update(users)
+    .set({ avatarUrl, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+
+  logger.info({ userId, s3Key }, 'Avatar upload URL generated')
+
+  return { uploadUrl, avatarUrl }
+}
+
+// ---------------------------------------------------------------------------
+// 15. removeAvatar — delete avatar from S3 and clear URL
+// ---------------------------------------------------------------------------
+
+export async function removeAvatar(
+  userId: string,
+  ipAddress: string,
+  userAgent: string,
+): Promise<{ success: true }> {
+  const [user] = await db
+    .select({ avatarUrl: users.avatarUrl })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!user) {
+    throw new NotFoundError('User not found', 'USER_NOT_FOUND')
+  }
+
+  if (user.avatarUrl) {
+    // Extract S3 key from the URL
+    const config = getConfig()
+    const s3Key = user.avatarUrl.replace(`${config.s3FileDomain}/`, '')
+
+    try {
+      const s3 = getS3Client()
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: config.s3Bucket,
+          Key: s3Key,
+        }),
+      )
+    } catch (err) {
+      logger.warn({ userId, s3Key, err }, 'Failed to delete avatar from S3')
+    }
+  }
+
+  await db
+    .update(users)
+    .set({ avatarUrl: null, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+
+  await logAudit({
+    actorId: userId,
+    actorType: 'user',
+    action: 'user.avatar_removed',
+    targetType: 'user',
+    targetId: userId,
+    ipAddress,
+    userAgent,
+  })
+
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// 16. getUserProfile — public profile info for another user
+// ---------------------------------------------------------------------------
+
+export async function getUserProfile(
+  targetUserId: string,
+): Promise<Record<string, unknown>> {
+  const [user] = await db
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      avatarUrl: users.avatarUrl,
+      displayName: users.displayName,
+      bio: users.bio,
+      orgRole: users.orgRole,
+      status: users.status,
+      positionName: positions.name,
+    })
+    .from(users)
+    .leftJoin(positions, eq(users.positionId, positions.id))
+    .where(eq(users.id, targetUserId))
+    .limit(1)
+
+  if (!user) {
+    throw new NotFoundError('User not found', 'USER_NOT_FOUND')
+  }
+
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    avatarUrl: user.avatarUrl,
+    displayName: user.displayName,
+    bio: user.bio,
+    orgRole: user.orgRole,
+    status: user.status,
+    positionName: user.positionName ?? null,
+  }
 }

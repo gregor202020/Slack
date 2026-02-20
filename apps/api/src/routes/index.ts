@@ -26,7 +26,8 @@ import { apiKeyRoutes } from './api-keys/index.js';
 import { maintenanceRoutes } from './maintenance/index.js';
 import { shiftRoutes } from './shifts/index.js';
 import { notificationRoutes } from './notifications/index.js';
-import { unreadRoutes } from './unread/index.js';
+import { unreadRoutes } from './unread/index.js'
+import { bookmarkRoutes } from './bookmarks/index.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(authRoutes, { prefix: '/api/auth' });
@@ -51,4 +52,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(shiftRoutes, { prefix: '/api/shifts' });
   await app.register(notificationRoutes, { prefix: '/api/notifications' });
   await app.register(unreadRoutes, { prefix: '/api/unread' });
+  await app.register(bookmarkRoutes, { prefix: '/api/bookmarks' });
 }

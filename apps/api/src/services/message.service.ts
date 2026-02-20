@@ -28,6 +28,7 @@ import { sha256 } from '../lib/crypto.js'
 import { isSuperAdmin } from '../middleware/roles.js'
 import { emitToChannel, emitToDm } from '../plugins/socket.js'
 import { notifyNewMessage, notifyNewDM } from './notification.service.js'
+import { processLinkPreviews } from './link-preview.service.js'
 import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
@@ -212,6 +213,10 @@ export async function sendChannelMessage(
   notifyNewMessage(channelId, userId, sanitizedBody)
     .catch((err) => logger.error({ err, channelId }, 'Failed to notify channel message'))
 
+  // Extract URLs and fetch link previews (non-blocking)
+  processLinkPreviews(message.id, sanitizedBody)
+    .catch((err) => logger.error({ err, messageId: message.id }, 'Failed to process link previews'))
+
   return message
 }
 
@@ -292,6 +297,10 @@ export async function sendDmMessage(
       }
     })
     .catch((err) => logger.error({ err, dmId }, 'Failed to query DM members for push'))
+
+  // Extract URLs and fetch link previews (non-blocking)
+  processLinkPreviews(message.id, sanitizedBody)
+    .catch((err) => logger.error({ err, messageId: message.id }, 'Failed to process link previews'))
 
   return message
 }

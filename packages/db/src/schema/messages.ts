@@ -233,3 +233,52 @@ export const linkPreviewsRelations = relations(linkPreviews, ({ one }) => ({
     references: [messages.id],
   }),
 }));
+
+// ============================================================================
+// TABLE: pinned_messages
+// ============================================================================
+
+export const pinnedMessages = pgTable(
+  'pinned_messages',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    channelId: uuid('channel_id')
+      .references(() => channels.id, { onDelete: 'cascade' })
+      .notNull(),
+    messageId: uuid('message_id')
+      .references(() => messages.id, { onDelete: 'cascade' })
+      .notNull(),
+    pinnedBy: uuid('pinned_by')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    pinnedAt: timestamp('pinned_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_pinned_channel_message').on(
+      table.channelId,
+      table.messageId,
+    ),
+    index('idx_pinned_messages_channel_id').on(table.channelId),
+    index('idx_pinned_messages_message_id').on(table.messageId),
+  ],
+);
+
+export const pinnedMessagesRelations = relations(
+  pinnedMessages,
+  ({ one }) => ({
+    channel: one(channels, {
+      fields: [pinnedMessages.channelId],
+      references: [channels.id],
+    }),
+    message: one(messages, {
+      fields: [pinnedMessages.messageId],
+      references: [messages.id],
+    }),
+    pinner: one(users, {
+      fields: [pinnedMessages.pinnedBy],
+      references: [users.id],
+    }),
+  }),
+);

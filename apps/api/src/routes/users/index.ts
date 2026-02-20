@@ -10,13 +10,23 @@ import { authenticate } from '../../middleware/auth.js'
 import { requireRole } from '../../middleware/roles.js'
 import { validateBody } from '../../middleware/validate.js'
 import { extractAuditContext } from '../../lib/audit.js'
-import { updateProfileSchema } from '@smoker/shared'
+import {
+  updateProfileSchema,
+  updateUserProfileSchema,
+  updatePreferencesSchema,
+  avatarUploadSchema,
+} from '@smoker/shared'
 import { forceLogoutUser } from '../../services/auth.service.js'
 import {
   listUsers,
   getMe,
   getUserById,
   updateProfile,
+  updateUserProfile,
+  updatePreferences,
+  getAvatarUploadUrl,
+  removeAvatar,
+  getUserProfile,
   changeOrgRole,
   suspendUser,
   unsuspendUser,
@@ -104,6 +114,80 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       const { ipAddress, userAgent } = extractAuditContext(request)
 
       const result = await updateProfile(user.id, data, ipAddress, userAgent)
+
+      return reply.status(200).send(result)
+    },
+  })
+
+  // PATCH /api/users/me/profile — Update profile fields (displayName, bio, timezone)
+  app.patch('/me/profile', {
+    preHandler: [authenticate, validateBody(updateUserProfileSchema)],
+    handler: async (request, reply) => {
+      const user = request.user!
+      const data = request.body as {
+        displayName?: string
+        bio?: string
+        timezone?: string
+      }
+      const { ipAddress, userAgent } = extractAuditContext(request)
+
+      const result = await updateUserProfile(user.id, data, ipAddress, userAgent)
+
+      return reply.status(200).send(result)
+    },
+  })
+
+  // PATCH /api/users/me/preferences — Update app preferences (theme, notifications)
+  app.patch('/me/preferences', {
+    preHandler: [authenticate, validateBody(updatePreferencesSchema)],
+    handler: async (request, reply) => {
+      const user = request.user!
+      const data = request.body as {
+        theme?: string
+        notificationSound?: boolean
+        notificationDesktop?: boolean
+      }
+      const { ipAddress, userAgent } = extractAuditContext(request)
+
+      const result = await updatePreferences(user.id, data, ipAddress, userAgent)
+
+      return reply.status(200).send(result)
+    },
+  })
+
+  // POST /api/users/me/avatar — Upload avatar (presigned URL flow)
+  app.post('/me/avatar', {
+    preHandler: [authenticate, validateBody(avatarUploadSchema)],
+    handler: async (request, reply) => {
+      const user = request.user!
+      const { contentType } = request.body as { contentType: string }
+
+      const result = await getAvatarUploadUrl(user.id, contentType)
+
+      return reply.status(200).send(result)
+    },
+  })
+
+  // DELETE /api/users/me/avatar — Remove avatar
+  app.delete('/me/avatar', {
+    preHandler: [authenticate],
+    handler: async (request, reply) => {
+      const user = request.user!
+      const { ipAddress, userAgent } = extractAuditContext(request)
+
+      const result = await removeAvatar(user.id, ipAddress, userAgent)
+
+      return reply.status(200).send(result)
+    },
+  })
+
+  // GET /api/users/:userId/profile — View another user's public profile
+  app.get('/:id/profile', {
+    preHandler: [authenticate],
+    handler: async (request, reply) => {
+      const { id } = request.params as { id: string }
+
+      const result = await getUserProfile(id)
 
       return reply.status(200).send(result)
     },

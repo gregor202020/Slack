@@ -24,7 +24,15 @@ export interface Reaction {
   createdAt: string
 }
 
-interface Channel {
+export interface ChannelMember {
+  userId: string
+  fullName: string
+  orgRole: string
+  avatarUrl: string | null
+  joinedAt: string
+}
+
+export interface Channel {
   id: string
   name: string
   type: string
@@ -32,6 +40,12 @@ interface Channel {
   topic?: string
   description?: string
   venueId?: string
+  memberCount?: number
+  isArchived?: boolean
+  isMandatory?: boolean
+  isDefault?: boolean
+  ownerUserId?: string
+  isMember?: boolean
 }
 
 interface Dm {
@@ -60,6 +74,9 @@ interface ChatState {
   // Unread counts state
   unreadCounts: Record<string, number> // keyed by channelId or dmId
 
+  // Channel members state
+  channelMembers: Record<string, ChannelMember[]>
+
   fetchChannels: () => Promise<void>
   fetchDms: () => Promise<void>
   fetchMessages: (channelId?: string, dmId?: string) => Promise<void>
@@ -83,6 +100,18 @@ interface ChatState {
   // Unread actions
   fetchUnreadCounts: () => Promise<void>
   markAsRead: (channelId?: string, dmId?: string) => Promise<void>
+
+  // Channel management actions
+  fetchChannelMembers: (channelId: string) => Promise<void>
+  updateChannel: (channelId: string, data: { name?: string; topic?: string; description?: string }) => Promise<void>
+  archiveChannel: (channelId: string) => Promise<void>
+  unarchiveChannel: (channelId: string) => Promise<void>
+  deleteChannel: (channelId: string) => Promise<void>
+  leaveChannel: (channelId: string) => Promise<void>
+  joinChannel: (channelId: string) => Promise<void>
+  addChannelMembers: (channelId: string, userIds: string[]) => Promise<void>
+  removeChannelMember: (channelId: string, userId: string) => Promise<void>
+  updateNotificationPref: (channelId: string, pref: 'all' | 'mentions' | 'muted') => Promise<void>
 }
 
 const typingTimeouts: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -274,6 +303,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Unread counts state
   unreadCounts: {},
 
+  // Channel members state
+  channelMembers: {},
+
   fetchChannels: async () => {
     const data = await api<{ data: Channel[] }>('/api/channels')
     set({ channels: data.data || [] })
@@ -453,5 +485,99 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch {
       // Silently fail — the optimistic update stays
     }
+  },
+
+  // Channel management actions
+  fetchChannelMembers: async (channelId: string) => {
+    try {
+      const data = await api<{ data: ChannelMember[] }>(`/api/channels/${channelId}/members`)
+      set((state) => ({
+        channelMembers: { ...state.channelMembers, [channelId]: data.data || [] },
+      }))
+    } catch {
+      // Silently fail
+    }
+  },
+
+  updateChannel: async (channelId: string, data: { name?: string; topic?: string; description?: string }) => {
+    const updated = await api<Channel>(`/api/channels/${channelId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+    set((state) => ({
+      channels: state.channels.map((ch) =>
+        ch.id === channelId ? { ...ch, ...updated } : ch,
+      ),
+    }))
+  },
+
+  archiveChannel: async (channelId: string) => {
+    await api(`/api/channels/${channelId}/archive`, { method: 'POST' })
+    set((state) => ({
+      channels: state.channels.map((ch) =>
+        ch.id === channelId ? { ...ch, isArchived: true } : ch,
+      ),
+    }))
+  },
+
+  unarchiveChannel: async (channelId: string) => {
+    await api(`/api/channels/${channelId}/unarchive`, { method: 'POST' })
+    set((state) => ({
+      channels: state.channels.map((ch) =>
+        ch.id === channelId ? { ...ch, isArchived: false } : ch,
+      ),
+    }))
+  },
+
+  deleteChannel: async (channelId: string) => {
+    await api(`/api/channels/${channelId}`, { method: 'DELETE' })
+    set((state) => ({
+      channels: state.channels.filter((ch) => ch.id !== channelId),
+      activeChannelId: state.activeChannelId === channelId ? null : state.activeChannelId,
+    }))
+  },
+
+  leaveChannel: async (channelId: string) => {
+    await api(`/api/channels/${channelId}/leave`, { method: 'POST' })
+    set((state) => ({
+      channels: state.channels.filter((ch) => ch.id !== channelId),
+      activeChannelId: state.activeChannelId === channelId ? null : state.activeChannelId,
+    }))
+  },
+
+  joinChannel: async (channelId: string) => {
+    await api(`/api/channels/${channelId}/join`, { method: 'POST' })
+    await get().fetchChannels()
+  },
+
+  addChannelMembers: async (channelId: string, userIds: string[]) => {
+    await api(`/api/channels/${channelId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userIds }),
+    })
+    // Refresh members list
+    await get().fetchChannelMembers(channelId)
+  },
+
+  removeChannelMember: async (channelId: string, userId: string) => {
+    await api(`/api/channels/${channelId}/members/${userId}`, {
+      method: 'DELETE',
+    })
+    // Optimistic update
+    set((state) => ({
+      channelMembers: {
+        ...state.channelMembers,
+        [channelId]: (state.channelMembers[channelId] ?? []).filter(
+          (m) => m.userId !== userId,
+        ),
+      },
+    }))
+  },
+
+  updateNotificationPref: async (channelId: string, pref: 'all' | 'mentions' | 'muted') => {
+    await api(`/api/channels/${channelId}/notification-pref`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pref }),
+    })
   },
 }))

@@ -80,6 +80,14 @@ export interface Reaction {
   createdAt: string
 }
 
+export interface ChannelMember {
+  userId: string
+  fullName: string
+  orgRole: string
+  avatarUrl: string | null
+  joinedAt: string
+}
+
 interface TypingUser {
   userId: string
   timestamp: number
@@ -111,6 +119,9 @@ interface ChatState {
   // Unread counts state
   unreadCounts: Record<string, number> // keyed by channelId or dmId
 
+  // Channel members state
+  channelMembers: Record<string, ChannelMember[]>
+
   fetchChannels: () => Promise<void>
   fetchDms: () => Promise<void>
   fetchMessages: (targetId: string, type: 'channel' | 'dm') => Promise<void>
@@ -140,6 +151,18 @@ interface ChatState {
   // Unread actions
   fetchUnreadCounts: () => Promise<void>
   markAsRead: (channelId?: string, dmId?: string) => Promise<void>
+
+  // Channel management actions
+  fetchChannelMembers: (channelId: string) => Promise<void>
+  updateChannel: (channelId: string, data: { name?: string; topic?: string; description?: string }) => Promise<void>
+  archiveChannel: (channelId: string) => Promise<void>
+  unarchiveChannel: (channelId: string) => Promise<void>
+  deleteChannel: (channelId: string) => Promise<void>
+  leaveChannel: (channelId: string) => Promise<void>
+  joinChannel: (channelId: string) => Promise<void>
+  addChannelMembers: (channelId: string, userIds: string[]) => Promise<void>
+  removeChannelMember: (channelId: string, userId: string) => Promise<void>
+  updateNotificationPref: (channelId: string, pref: 'all' | 'mentions' | 'muted') => Promise<void>
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -165,6 +188,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Unread counts state
   unreadCounts: {},
+
+  // Channel members state
+  channelMembers: {},
 
   fetchChannels: async () => {
     set({ isLoadingChannels: true })
@@ -421,6 +447,80 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch {
       // Silently fail — the optimistic update stays
     }
+  },
+
+  // Channel management actions
+  fetchChannelMembers: async (channelId: string) => {
+    try {
+      const data = await apiClient.get<{ data: ChannelMember[] }>(
+        `/channels/${channelId}/members`,
+      )
+      set((state) => ({
+        channelMembers: { ...state.channelMembers, [channelId]: data.data ?? [] },
+      }))
+    } catch {
+      // Silently fail
+    }
+  },
+
+  updateChannel: async (channelId: string, data: { name?: string; topic?: string; description?: string }) => {
+    const updated = await apiClient.patch<Channel>(
+      `/channels/${channelId}`,
+      data,
+    )
+    set((state) => ({
+      channels: state.channels.map((ch) =>
+        ch.id === channelId ? { ...ch, ...updated } : ch,
+      ),
+    }))
+  },
+
+  archiveChannel: async (channelId: string) => {
+    await apiClient.post(`/channels/${channelId}/archive`)
+  },
+
+  unarchiveChannel: async (channelId: string) => {
+    await apiClient.post(`/channels/${channelId}/unarchive`)
+  },
+
+  deleteChannel: async (channelId: string) => {
+    await apiClient.delete(`/channels/${channelId}`)
+    set((state) => ({
+      channels: state.channels.filter((ch) => ch.id !== channelId),
+    }))
+  },
+
+  leaveChannel: async (channelId: string) => {
+    await apiClient.post(`/channels/${channelId}/leave`)
+    set((state) => ({
+      channels: state.channels.filter((ch) => ch.id !== channelId),
+    }))
+  },
+
+  joinChannel: async (channelId: string) => {
+    await apiClient.post(`/channels/${channelId}/join`)
+    await get().fetchChannels()
+  },
+
+  addChannelMembers: async (channelId: string, userIds: string[]) => {
+    await apiClient.post(`/channels/${channelId}/members`, { userIds })
+    await get().fetchChannelMembers(channelId)
+  },
+
+  removeChannelMember: async (channelId: string, userId: string) => {
+    await apiClient.delete(`/channels/${channelId}/members/${userId}`)
+    set((state) => ({
+      channelMembers: {
+        ...state.channelMembers,
+        [channelId]: (state.channelMembers[channelId] ?? []).filter(
+          (m) => m.userId !== userId,
+        ),
+      },
+    }))
+  },
+
+  updateNotificationPref: async (channelId: string, pref: 'all' | 'mentions' | 'muted') => {
+    await apiClient.patch(`/channels/${channelId}/notification-pref`, { pref })
   },
 
   setupSocketListeners: () => {

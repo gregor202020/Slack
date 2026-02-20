@@ -25,6 +25,7 @@ import {
   getMessageVersions,
   getDmMessages,
 } from '../../services/message.service.js'
+import { getLinkPreviews } from '../../services/link-preview.service.js'
 
 // ---------------------------------------------------------------------------
 // Helper: assert that the requesting user has access to the message's
@@ -245,6 +246,20 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       await assertMessageAccess(messageId, id)
       const versions = await getMessageVersions(messageId, id, orgRole)
       return reply.status(200).send(versions)
+    },
+  })
+
+  // --- Link previews ---
+
+  // GET /api/messages/:messageId/previews — Get link previews for a message
+  app.get('/:messageId/previews', {
+    preHandler: [authenticate],
+    handler: async (request, reply) => {
+      const { id } = request.user!
+      const { messageId } = request.params as { messageId: string }
+      await assertMessageAccess(messageId, id)
+      const previews = await getLinkPreviews(messageId)
+      return reply.status(200).send({ previews })
     },
   })
 }

@@ -47,7 +47,12 @@ export {
   mentionsRelations,
   linkPreviews,
   linkPreviewsRelations,
+  pinnedMessages,
+  pinnedMessagesRelations,
 } from './messages';
+
+// Bookmarks
+export { bookmarks, bookmarksRelations } from './bookmarks';
 
 // Files
 export { files, filesRelations } from './files';

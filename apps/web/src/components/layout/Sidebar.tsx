@@ -140,14 +140,44 @@ export function Sidebar() {
             <span>Admin</span>
           </button>
         )}
-        {/* User info */}
+
+        {/* Settings link */}
+        <button
+          onClick={() => router.push('/settings')}
+          className={clsx(
+            'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
+            pathname === '/settings'
+              ? 'bg-smoke-700 text-smoke-100'
+              : 'text-smoke-400 hover:bg-smoke-700 hover:text-smoke-100',
+          )}
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          <span>Settings</span>
+        </button>
+
+        {/* User info — click to go to profile */}
         {user && (
-          <div className="flex items-center gap-2 px-2">
-            <Avatar name={user.displayName || `${user.firstName} ${user.lastName}`} size="sm" isOnline />
+          <button
+            onClick={() => router.push('/profile')}
+            className={clsx(
+              'flex items-center gap-2 w-full px-2 py-1.5 rounded-md transition-colors',
+              pathname === '/profile'
+                ? 'bg-smoke-700'
+                : 'hover:bg-smoke-700',
+            )}
+          >
+            <Avatar
+              src={user.avatarUrl}
+              name={user.displayName || `${user.firstName} ${user.lastName}`}
+              size="sm"
+              isOnline
+            />
             <span className="text-sm text-smoke-200 truncate">
               {user.displayName || `${user.firstName} ${user.lastName}`}
             </span>
-          </div>
+          </button>
         )}
       </div>
     </aside>

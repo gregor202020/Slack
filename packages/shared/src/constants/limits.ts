@@ -19,6 +19,8 @@ export const MAX_REACTIONS_PER_MESSAGE = 20;
 export const MAX_CHANNEL_TOPIC_LENGTH = 500;
 export const MAX_API_KEY_NAME_LENGTH = 100;
 export const MAX_FILENAME_LENGTH = 255;
+export const MAX_DISPLAY_NAME_LENGTH = 80;
+export const MAX_BIO_LENGTH = 500;
 
 // --- Auth & session timing ---
 export const OTP_LENGTH = 6;
