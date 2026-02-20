@@ -9,22 +9,39 @@ import {
   View,
   FlatList,
   TextInput,
+  Pressable,
+  Text,
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useChatStore, type Channel } from '../../../src/stores/chat'
 import { ChannelListItem } from '../../../src/components/ChannelListItem'
 import { colors } from '../../../src/theme/colors'
-import { fontSize } from '../../../src/theme/typography'
+import { fontSize, fontWeight } from '../../../src/theme/typography'
 
 export default function ChannelListScreen() {
   const router = useRouter()
+  const navigation = useNavigation()
   const { channels, fetchChannels, isLoadingChannels, setActiveChannel } = useChatStore()
   const [search, setSearch] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+
+  // Add "+" button to the header
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => router.push('/(main)/(channels)/create')}
+          style={styles.headerButton}
+        >
+          <Text style={styles.headerButtonText}>+</Text>
+        </Pressable>
+      ),
+    })
+  }, [navigation, router])
 
   useEffect(() => {
     fetchChannels()
@@ -144,5 +161,20 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.divider,
     marginLeft: 64,
+  },
+  headerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.brand[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  headerButtonText: {
+    color: colors.white,
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    marginTop: -1,
   },
 })

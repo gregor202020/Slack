@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/hooks/useToast'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PHONE_REGEX } from '@smoker/shared'
@@ -10,6 +11,7 @@ import { PHONE_REGEX } from '@smoker/shared'
 export default function LoginPage() {
   const router = useRouter()
   const requestOtp = useAuthStore((s) => s.requestOtp)
+  const toast = useToast()
   const [phone, setPhone] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -31,7 +33,8 @@ export default function LoginPage() {
       sessionStorage.setItem('otpPhone', phone)
       router.push('/verify')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+      const message = err instanceof Error ? err.message : 'Something went wrong. Try again.'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }

@@ -17,17 +17,19 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native'
-import { useLocalSearchParams, useNavigation } from 'expo-router'
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useChatStore, type Message } from '../../../src/stores/chat'
 import { useAuthStore } from '../../../src/stores/auth'
 import { MessageBubble } from '../../../src/components/MessageBubble'
+import { AttachButton } from '../../../src/components/AttachButton'
 import { colors } from '../../../src/theme/colors'
 import { fontSize, fontWeight } from '../../../src/theme/typography'
 
 export default function ChannelMessagesScreen() {
   const { channelId } = useLocalSearchParams<{ channelId: string }>()
   const navigation = useNavigation()
+  const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const {
     messages,
@@ -120,17 +122,28 @@ export default function ChannelMessagesScreen() {
     }
   }, [channelId, hasMoreMessages, fetchMoreMessages])
 
+  const handleReplyInThread = useCallback(
+    (messageId: string) => {
+      router.push(`/(main)/(channels)/thread/${messageId}` as never)
+    },
+    [router],
+  )
+
   const renderItem = useCallback(
     ({ item }: { item: Message }) => (
       <MessageBubble
+        messageId={item.id}
         body={item.body}
+        senderId={item.senderId}
         senderName={item.senderName}
         senderAvatarUrl={item.senderAvatarUrl}
         createdAt={item.createdAt}
         isOwnMessage={item.senderId === user?.id}
+        threadReplyCount={item.threadReplyCount}
+        onReplyInThread={handleReplyInThread}
       />
     ),
-    [user?.id],
+    [user?.id, handleReplyInThread],
   )
 
   return (
@@ -158,6 +171,9 @@ export default function ChannelMessagesScreen() {
         )}
 
         <View style={styles.composer}>
+          {channelId && (
+            <AttachButton targetId={channelId} targetType="channel" />
+          )}
           <TextInput
             style={styles.composerInput}
             value={text}

@@ -28,6 +28,7 @@ import { sha256 } from '../lib/crypto.js'
 import { isSuperAdmin } from '../middleware/roles.js'
 import { emitToChannel, emitToDm } from '../plugins/socket.js'
 import { notifyNewMessage, notifyNewDM } from './notification.service.js'
+import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -200,11 +201,16 @@ export async function sendChannelMessage(
 
   await extractAndStoreMentions(message.id, sanitizedBody)
 
+  logger.info(
+    { messageId: message.id, channelId, userId, isThread: !!parentMessageId },
+    'Channel message sent',
+  )
+
   emitToChannel(channelId, 'message:new', message)
 
   // Push notification to offline channel members (non-blocking)
   notifyNewMessage(channelId, userId, sanitizedBody)
-    .catch((err) => console.error('[push] Failed to notify channel message:', err))
+    .catch((err) => logger.error({ err, channelId }, 'Failed to notify channel message'))
 
   return message
 }
@@ -267,6 +273,11 @@ export async function sendDmMessage(
 
   await extractAndStoreMentions(message.id, sanitizedBody)
 
+  logger.info(
+    { messageId: message.id, dmId, userId, isThread: !!parentMessageId },
+    'DM message sent',
+  )
+
   emitToDm(dmId, 'message:new', message)
 
   // Push notification to other DM members (non-blocking)
@@ -277,10 +288,10 @@ export async function sendDmMessage(
     .then((otherMembers) => {
       for (const member of otherMembers) {
         notifyNewDM(userId, member.userId, sanitizedBody)
-          .catch((err) => console.error('[push] Failed to notify DM message:', err))
+          .catch((err) => logger.error({ err, dmId }, 'Failed to notify DM message'))
       }
     })
-    .catch((err) => console.error('[push] Failed to query DM members for push:', err))
+    .catch((err) => logger.error({ err, dmId }, 'Failed to query DM members for push'))
 
   return message
 }
@@ -357,6 +368,11 @@ export async function editMessage(
     })
     .where(eq(messages.id, messageId))
     .returning()
+
+  logger.info(
+    { messageId, userId, channelId: message.channelId, dmId: message.dmId },
+    'Message edited',
+  )
 
   if (updated) {
     const payload = { messageId, body: updated.body, editedAt: updated.updatedAt }
@@ -437,6 +453,17 @@ export async function deleteMessage(
   } else if (message.dmId) {
     emitToDm(message.dmId, 'message:deleted', { messageId })
   }
+
+  logger.info(
+    {
+      messageId,
+      userId,
+      channelId: message.channelId,
+      dmId: message.dmId,
+      deletedByAdmin: isSuper && !isAuthor,
+    },
+    'Message deleted',
+  )
 
   // Audit log
   const action = isSuper && !isAuthor ? 'message.deleted_by_admin' : 'message.deleted'

@@ -30,6 +30,7 @@ import {
   tokenRevokedError,
 } from '../lib/errors.js'
 import { getConfig } from '../lib/config.js'
+import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // In-memory OTP store (replace with Redis for multi-server deployments)
@@ -86,6 +87,7 @@ export async function requestOtp(
 
   // Uniform response: don't reveal whether the phone is registered
   if (!user) {
+    logger.info({ method }, 'OTP requested for unregistered phone')
     return { message: 'If this number is registered, a verification code has been sent.' }
   }
 
@@ -103,15 +105,19 @@ export async function requestOtp(
     )
 
   if (fatigueResult && fatigueResult.total >= OTP_FATIGUE_MAX) {
+    logger.warn({ userId: user.id }, 'OTP fatigue limit reached')
     // Silently return to avoid revealing rate-limit information
     return { message: 'If this number is registered, a verification code has been sent.' }
   }
 
   // Account lockout check
   if (user.lockedUntil && user.lockedUntil > new Date()) {
+    logger.warn({ userId: user.id }, 'OTP requested for locked account')
     // Silently return to avoid revealing lockout status
     return { message: 'If this number is registered, a verification code has been sent.' }
   }
+
+  logger.info({ userId: user.id, method }, 'OTP requested')
 
   // Generate OTP and store its hash
   const otp = generateOtp()
@@ -134,6 +140,7 @@ export async function requestOtp(
   const config = getConfig()
 
   if (config.isDevelopment) {
+    // In development, log OTP to console for local testing
     // eslint-disable-next-line no-console
     console.log(`[DEV] OTP for ${phone}: ${otp}`)
   } else {
@@ -188,11 +195,13 @@ export async function verifyOtp(
   const [user] = await db.select().from(users).where(eq(users.phone, phone)).limit(1)
 
   if (!user) {
+    logger.warn('OTP verification attempted for unknown phone')
     throw new UnauthorizedError('Invalid credentials', 'INVALID_CREDENTIALS')
   }
 
   // Account lockout check
   if (user.lockedUntil && user.lockedUntil > new Date()) {
+    logger.warn({ userId: user.id }, 'OTP verification attempted on locked account')
     throw accountLockedError(user.lockedUntil)
   }
 
@@ -268,6 +277,7 @@ export async function verifyOtp(
       userAgent,
     })
 
+    logger.warn({ userId: user.id, failedAttempts: newFailedAttempts }, 'OTP verification failed')
     throw new UnauthorizedError('Invalid credentials', 'INVALID_CREDENTIALS')
   }
 
@@ -344,6 +354,8 @@ export async function verifyOtp(
     userAgent,
   })
 
+  logger.info({ userId: user.id, sessionId: session.id }, 'Login successful')
+
   return {
     accessToken,
     refreshToken,
@@ -377,10 +389,12 @@ export async function refreshAccessToken(
     .limit(1)
 
   if (!session || session.revokedAt) {
+    logger.warn('Token refresh attempted with revoked/missing session')
     throw tokenRevokedError()
   }
 
   if (session.expiresAt < new Date()) {
+    logger.warn({ userId: session.userId }, 'Token refresh attempted with expired session')
     throw new UnauthorizedError('Session expired', 'SESSION_EXPIRED')
   }
 
@@ -405,6 +419,7 @@ export async function refreshAccessToken(
       userAgent,
     })
 
+    logger.warn({ userId: session.userId, sessionId: session.id }, 'Device fingerprint mismatch on token refresh')
     throw new UnauthorizedError('Device mismatch', 'DEVICE_MISMATCH')
   }
 
@@ -426,6 +441,8 @@ export async function refreshAccessToken(
   // Sign a new access token
   const accessToken = signAccessToken({ userId: user.id, sessionId: session.id })
 
+  logger.debug({ userId: user.id, sessionId: session.id }, 'Access token refreshed')
+
   return { accessToken }
 }
 
@@ -439,6 +456,8 @@ export async function logout(
   ipAddress: string,
   userAgent: string,
 ): Promise<{ success: true }> {
+  logger.info({ userId, sessionId }, 'User logged out')
+
   await db
     .update(userSessions)
     .set({ revokedAt: new Date() })
@@ -486,6 +505,11 @@ export async function forceLogoutUser(
     ipAddress,
     userAgent,
   })
+
+  logger.warn(
+    { targetUserId, actorId, revokedCount: revoked.length },
+    'Force logout executed',
+  )
 
   return { revokedCount: revoked.length }
 }

@@ -29,6 +29,7 @@ import {
   blockedFileTypeError,
   storageQuotaExceededError,
 } from '../lib/errors.js'
+import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -214,6 +215,18 @@ export async function uploadFile(options: {
     userAgent,
   })
 
+  logger.info(
+    {
+      fileId: file.id,
+      userId,
+      sizeBytes: fileBuffer.length,
+      mimeType,
+      channelId: channelId ?? null,
+      dmId: dmId ?? null,
+    },
+    'File uploaded',
+  )
+
   return {
     ...file,
     sizeBytes: Number(file.sizeBytes),
@@ -268,6 +281,11 @@ export async function getFileDownloadUrl(
   })
 
   const expiresAt = new Date(Date.now() + SIGNED_URL_EXPIRY_SECONDS * 1000)
+
+  logger.info(
+    { fileId, userId, sizeBytes: file.sizeBytes },
+    'File download URL generated',
+  )
 
   return { url, expiresAt: expiresAt.toISOString() }
 }
@@ -331,11 +349,20 @@ export async function deleteFile(
   // Remove file record from files table (soft delete via vault)
   await db.delete(files).where(eq(files.id, fileId))
 
+  const deletedByAdmin = isAdminOrAbove(orgRole) && file.userId !== userId
+
+  logger.info(
+    {
+      fileId,
+      userId,
+      sizeBytes: Number(file.sizeBytes),
+      deletedByAdmin,
+    },
+    'File deleted',
+  )
+
   // Audit log
-  const action =
-    isAdminOrAbove(orgRole) && file.userId !== userId
-      ? 'file.deleted_by_admin'
-      : 'file.deleted'
+  const action = deletedByAdmin ? 'file.deleted_by_admin' : 'file.deleted'
 
   await logAudit({
     actorId: userId,

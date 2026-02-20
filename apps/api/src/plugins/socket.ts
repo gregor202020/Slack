@@ -13,6 +13,7 @@ import { getConfig } from '../lib/config.js'
 import { verifyToken } from '../lib/jwt.js'
 import { db, channelMembers, dmMembers, dms, userSessions } from '@smoker/db'
 import { eq, and, isNull } from 'drizzle-orm'
+import { logger } from '../lib/logger.js'
 
 let io: SocketIOServer | null = null
 let revalidationInterval: ReturnType<typeof setInterval> | null = null
@@ -80,6 +81,8 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
   io.on('connection', (socket) => {
     const { userId } = socket.data as AuthenticatedSocket;
 
+    logger.info({ userId, socketId: socket.id }, 'Socket.io client connected')
+
     // Join the user's personal room for targeted events
     socket.join(`user:${userId}`);
 
@@ -109,7 +112,7 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
     }
 
     joinRooms().catch((err) => {
-      console.error(`[socket] Failed to join rooms for user ${userId}:`, err)
+      logger.error({ err, userId }, 'Failed to join Socket.io rooms')
     })
 
     // Presence: mark user as online and broadcast
@@ -119,6 +122,8 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
     }
 
     socket.on('disconnect', async () => {
+      logger.info({ userId, socketId: socket.id }, 'Socket.io client disconnected')
+
       // Check if the user has any other active sockets before marking offline
       const remaining = await io!.in(`user:${userId}`).fetchSockets()
       if (remaining.length === 0) {
@@ -129,7 +134,9 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
 
     // Typing indicators — broadcast to the relevant room
     // Only broadcast if the socket is actually a member of the target room
+    // Wrapped with event timing for performance observability
     socket.on('typing:start', (data: { channelId?: string, dmId?: string }) => {
+      const start = performance.now()
       if (data.channelId && socket.rooms.has(`channel:${data.channelId}`)) {
         socket.to(`channel:${data.channelId}`).emit('typing:start', {
           userId,
@@ -141,9 +148,14 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
           dmId: data.dmId,
         })
       }
+      const elapsed = performance.now() - start
+      if (elapsed > 50) {
+        logger.warn({ event: 'typing:start', userId, durationMs: Math.round(elapsed) }, 'Slow Socket.io event')
+      }
     })
 
     socket.on('typing:stop', (data: { channelId?: string, dmId?: string }) => {
+      const start = performance.now()
       if (data.channelId && socket.rooms.has(`channel:${data.channelId}`)) {
         socket.to(`channel:${data.channelId}`).emit('typing:stop', {
           userId,
@@ -154,6 +166,10 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
           userId,
           dmId: data.dmId,
         })
+      }
+      const elapsed = performance.now() - start
+      if (elapsed > 50) {
+        logger.warn({ event: 'typing:stop', userId, durationMs: Math.round(elapsed) }, 'Slow Socket.io event')
       }
     })
   })
@@ -219,7 +235,7 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
           }
         }
       } catch (err) {
-        console.error(`[socket] Revalidation failed for user ${userId}:`, err)
+        logger.error({ err, userId }, 'Socket.io session revalidation failed')
       }
     }
   }, REVALIDATION_INTERVAL_MS)

@@ -20,6 +20,7 @@ import {
 } from '../lib/errors.js'
 import { forceLogoutUser } from './auth.service.js'
 import { canManageRole, type OrgRole } from '../middleware/roles.js'
+import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // 1. listUsers
@@ -381,6 +382,11 @@ export async function changeOrgRole(
     .where(eq(users.id, targetUserId))
     .returning()
 
+  logger.warn(
+    { actorId, targetUserId, previousRole: target.orgRole, newRole },
+    'User role changed',
+  )
+
   await logAudit({
     actorId,
     actorType: 'user',
@@ -442,6 +448,8 @@ export async function suspendUser(
 
   // Force-logout all sessions
   await forceLogoutUser(targetUserId, actorId, ipAddress, userAgent)
+
+  logger.warn({ actorId, targetUserId }, 'User suspended')
 
   await logAudit({
     actorId,
@@ -536,6 +544,8 @@ export async function deactivateUser(
 
   // Force-logout all sessions
   await forceLogoutUser(targetUserId, actorId, ipAddress, userAgent)
+
+  logger.warn({ actorId, targetUserId }, 'User deactivated')
 
   await logAudit({
     actorId,

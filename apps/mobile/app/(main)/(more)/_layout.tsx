@@ -1,5 +1,6 @@
 /**
- * More stack layout — stack navigator for settings, profile, and admin screens.
+ * More stack layout — stack navigator for settings, profile, shifts,
+ * announcements, and notification screens.
  */
 
 import React from 'react'
@@ -25,6 +26,18 @@ export default function MoreLayout() {
       <Stack.Screen
         name="profile"
         options={{ title: 'Edit Profile' }}
+      />
+      <Stack.Screen
+        name="shifts"
+        options={{ title: 'My Shifts' }}
+      />
+      <Stack.Screen
+        name="announcements"
+        options={{ title: 'Announcements' }}
+      />
+      <Stack.Screen
+        name="notifications"
+        options={{ title: 'Notifications' }}
       />
     </Stack>
   )

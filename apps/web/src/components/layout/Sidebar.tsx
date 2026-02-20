@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { Avatar } from '@/components/ui/Avatar'
+import { ChannelSkeleton, DmSkeleton } from '@/components/ui/Skeleton'
 
 export function Sidebar() {
   const router = useRouter()
@@ -18,6 +19,8 @@ export function Sidebar() {
   const user = useAuthStore((s) => s.user)
 
   const isAdmin = user?.orgRole === 'admin' || user?.orgRole === 'super_admin'
+  const isChannelsLoading = channels.length === 0
+  const isDmsLoading = dms.length === 0
 
   return (
     <aside className="flex flex-col w-64 bg-smoke-800 border-r border-smoke-600 h-full">
@@ -35,24 +38,34 @@ export function Sidebar() {
               Channels
             </span>
           </div>
-          {channels.map((ch) => (
-            <button
-              key={ch.id}
-              onClick={() => {
-                setActiveChannel(ch.id)
-                router.push(`/channels/${ch.id}`)
-              }}
-              className={clsx(
-                'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
-                activeChannelId === ch.id
-                  ? 'bg-brand text-white'
-                  : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
-              )}
-            >
-              <span className="text-smoke-400">#</span>
-              <span className="truncate">{ch.name}</span>
-            </button>
-          ))}
+          {isChannelsLoading ? (
+            <>
+              <ChannelSkeleton />
+              <ChannelSkeleton />
+              <ChannelSkeleton />
+              <ChannelSkeleton />
+              <ChannelSkeleton />
+            </>
+          ) : (
+            channels.map((ch) => (
+              <button
+                key={ch.id}
+                onClick={() => {
+                  setActiveChannel(ch.id)
+                  router.push(`/channels/${ch.id}`)
+                }}
+                className={clsx(
+                  'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
+                  activeChannelId === ch.id
+                    ? 'bg-brand text-white'
+                    : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
+                )}
+              >
+                <span className="text-smoke-400">#</span>
+                <span className="truncate">{ch.name}</span>
+              </button>
+            ))
+          )}
         </div>
 
         {/* DMs */}
@@ -62,24 +75,32 @@ export function Sidebar() {
               Direct Messages
             </span>
           </div>
-          {dms.map((dm) => (
-            <button
-              key={dm.id}
-              onClick={() => {
-                setActiveDm(dm.id)
-                router.push(`/dms/${dm.id}`)
-              }}
-              className={clsx(
-                'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
-                activeDmId === dm.id
-                  ? 'bg-brand text-white'
-                  : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
-              )}
-            >
-              <Avatar name={`DM ${dm.id.slice(0, 4)}`} size="sm" />
-              <span className="truncate">DM</span>
-            </button>
-          ))}
+          {isDmsLoading ? (
+            <>
+              <DmSkeleton />
+              <DmSkeleton />
+              <DmSkeleton />
+            </>
+          ) : (
+            dms.map((dm) => (
+              <button
+                key={dm.id}
+                onClick={() => {
+                  setActiveDm(dm.id)
+                  router.push(`/dms/${dm.id}`)
+                }}
+                className={clsx(
+                  'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
+                  activeDmId === dm.id
+                    ? 'bg-brand text-white'
+                    : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
+                )}
+              >
+                <Avatar name={`DM ${dm.id.slice(0, 4)}`} size="sm" />
+                <span className="truncate">DM</span>
+              </button>
+            ))
+          )}
         </div>
       </nav>
 

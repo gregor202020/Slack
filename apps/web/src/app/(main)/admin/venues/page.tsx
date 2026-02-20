@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
+import { VenueCardSkeleton } from '@/components/ui/Skeleton'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 
@@ -47,8 +47,15 @@ export default function AdminVenuesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-smoke-100">Venues</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <VenueCardSkeleton />
+          <VenueCardSkeleton />
+          <VenueCardSkeleton />
+        </div>
       </div>
     )
   }

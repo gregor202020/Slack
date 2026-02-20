@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
-import { Spinner } from '@/components/ui/Spinner'
+import { TableRowSkeleton } from '@/components/ui/Skeleton'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 
@@ -72,8 +72,29 @@ export default function AdminUsersPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-smoke-100">Users</h2>
+        </div>
+        <div className="rounded-lg border border-smoke-600 overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-smoke-800 text-left">
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">User</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">Role</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-smoke-700">
+              <TableRowSkeleton columns={4} />
+              <TableRowSkeleton columns={4} />
+              <TableRowSkeleton columns={4} />
+              <TableRowSkeleton columns={4} />
+              <TableRowSkeleton columns={4} />
+            </tbody>
+          </table>
+        </div>
       </div>
     )
   }

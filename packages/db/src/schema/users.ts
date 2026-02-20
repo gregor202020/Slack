@@ -9,7 +9,7 @@ import {
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ============================================================================
 // TABLE: positions
@@ -71,6 +71,8 @@ export const users = pgTable(
     index('idx_users_org_role').on(table.orgRole),
     index('idx_users_position_id').on(table.positionId),
     index('idx_users_phone').on(table.phone),
+    // Full-text search GIN index on full_name
+    index('idx_users_fullname_fts').using('gin', sql`to_tsvector('english', ${table.fullName})`).where(sql`${table.status} = 'active'`),
   ],
 );
 

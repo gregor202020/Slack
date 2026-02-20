@@ -1,5 +1,5 @@
 /**
- * Channels stack layout — stack navigator for channel list and detail screens.
+ * Channels stack layout — stack navigator for channel list, detail, and create screens.
  */
 
 import React from 'react'
@@ -25,6 +25,17 @@ export default function ChannelsLayout() {
       <Stack.Screen
         name="[channelId]"
         options={{ title: '' }}
+      />
+      <Stack.Screen
+        name="create"
+        options={{
+          title: 'Create Channel',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="thread/[messageId]"
+        options={{ title: 'Thread' }}
       />
     </Stack>
   )

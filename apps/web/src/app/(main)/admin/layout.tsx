@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 const tabs = [
   { label: 'Users', href: '/admin/users' },
@@ -35,7 +36,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-6">{children}</div>
+      <div className="flex-1 overflow-auto p-6">
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+      </div>
     </div>
   )
 }

@@ -8,6 +8,7 @@
 import { db, auditLogs } from '@smoker/db'
 import { desc } from 'drizzle-orm'
 import { sha256 } from './crypto.js'
+import { logger } from './logger.js'
 
 export type AuditActorType = 'user' | 'api_key' | 'system'
 
@@ -112,11 +113,8 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
 
     // Log to external logger for critical events
     if (CRITICAL_ACTIONS.has(action)) {
-      // TODO: Replace with CloudWatch/external log service in production
-      // eslint-disable-next-line no-console
-      console.log(
-        JSON.stringify({
-          level: 'audit',
+      logger.warn(
+        {
           type: 'critical_audit_event',
           action,
           actorId,
@@ -129,13 +127,13 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
           chainHash,
           // Redact metadata values that might contain sensitive data
           metadataKeys: metadata ? Object.keys(metadata) : undefined,
-        }),
+        },
+        'Critical audit event',
       )
     }
   } catch (error) {
     // Audit logging failures must not crash the application
-    // eslint-disable-next-line no-console
-    console.error('Failed to write audit log entry:', error)
+    logger.error({ err: error, action, actorId }, 'Failed to write audit log entry')
   }
 }
 

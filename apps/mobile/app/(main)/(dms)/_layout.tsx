@@ -26,6 +26,10 @@ export default function DmsLayout() {
         name="[dmId]"
         options={{ title: '' }}
       />
+      <Stack.Screen
+        name="thread/[messageId]"
+        options={{ title: 'Thread' }}
+      />
     </Stack>
   )
 }

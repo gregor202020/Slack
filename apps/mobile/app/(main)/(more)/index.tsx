@@ -62,6 +62,18 @@ export default function MoreScreen() {
           label="Edit Profile"
           onPress={() => router.push('/(main)/(more)/profile')}
         />
+        <MenuItem
+          label="My Shifts"
+          onPress={() => router.push('/(main)/(more)/shifts')}
+        />
+        <MenuItem
+          label="Announcements"
+          onPress={() => router.push('/(main)/(more)/announcements')}
+        />
+        <MenuItem
+          label="Notification Settings"
+          onPress={() => router.push('/(main)/(more)/notifications')}
+        />
 
         {isAdmin && (
           <MenuItem

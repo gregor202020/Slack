@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/hooks/useToast'
 import { Button } from '@/components/ui/Button'
 
 const RESEND_COOLDOWN = 60
@@ -11,9 +12,9 @@ export default function VerifyPage() {
   const router = useRouter()
   const verifyOtp = useAuthStore((s) => s.verifyOtp)
   const requestOtp = useAuthStore((s) => s.requestOtp)
+  const toast = useToast()
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
   const [phone, setPhone] = useState('')
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN)
   const [isResending, setIsResending] = useState(false)
@@ -45,13 +46,13 @@ export default function VerifyPage() {
       await requestOtp(phone)
       setResendTimer(RESEND_COOLDOWN)
       setCode(['', '', '', '', '', ''])
-      setError('')
+      toast.success('Verification code resent.')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resend code.')
+      toast.error(err instanceof Error ? err.message : 'Failed to resend code.')
     } finally {
       setIsResending(false)
     }
-  }, [resendTimer, phone, isResending, requestOtp])
+  }, [resendTimer, phone, isResending, requestOtp, toast])
 
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) value = value.slice(-1)
@@ -82,7 +83,6 @@ export default function VerifyPage() {
     const otp = fullCode || code.join('')
     if (otp.length !== 6) return
 
-    setError('')
     setIsLoading(true)
 
     try {
@@ -95,7 +95,7 @@ export default function VerifyPage() {
         router.push('/channels')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid code. Try again.')
+      toast.error(err instanceof Error ? err.message : 'Invalid code. Try again.')
       setCode(['', '', '', '', '', ''])
       inputRefs.current[0]?.focus()
     } finally {
@@ -128,8 +128,6 @@ export default function VerifyPage() {
             />
           ))}
         </div>
-
-        {error && <p className="text-sm text-error text-center">{error}</p>}
 
         <Button
           type="button"

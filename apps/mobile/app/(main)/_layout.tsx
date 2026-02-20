@@ -39,6 +39,15 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
+        name="(search)"
+        options={{
+          title: 'Search',
+          tabBarIcon: ({ color }) => (
+            <Text style={[styles.tabIcon, { color }]}>{'\u{1F50D}'}</Text>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="(dms)"
         options={{
           title: 'DMs',

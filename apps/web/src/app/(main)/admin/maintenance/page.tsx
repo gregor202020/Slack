@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/Spinner'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface MaintenanceRequest {
   id: string
@@ -45,8 +45,26 @@ export default function AdminMaintenancePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-smoke-100">Maintenance Requests</h2>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-lg border border-smoke-600 bg-smoke-800 p-4 space-y-2">
+              <div className="flex items-start justify-between">
+                <Skeleton variant="text" className="h-5 w-40" />
+                <div className="flex gap-2">
+                  <Skeleton variant="text" className="h-5 w-14 rounded-full" />
+                  <Skeleton variant="text" className="h-5 w-14 rounded-full" />
+                </div>
+              </div>
+              <Skeleton variant="text" className="h-3.5 w-full" />
+              <Skeleton variant="text" className="h-3.5 w-1/2" />
+              <Skeleton variant="text" className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

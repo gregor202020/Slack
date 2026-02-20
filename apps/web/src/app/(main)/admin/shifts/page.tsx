@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/Spinner'
+import { TableRowSkeleton } from '@/components/ui/Skeleton'
 
 interface Shift {
   id: string
@@ -28,8 +28,27 @@ export default function AdminShiftsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-smoke-100">Shifts</h2>
+        </div>
+        <div className="rounded-lg border border-smoke-600 overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-smoke-800 text-left">
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">Position</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">Start</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">End</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-smoke-400">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-smoke-700">
+              <TableRowSkeleton columns={4} />
+              <TableRowSkeleton columns={4} />
+              <TableRowSkeleton columns={4} />
+            </tbody>
+          </table>
+        </div>
       </div>
     )
   }

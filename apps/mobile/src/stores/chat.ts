@@ -1,5 +1,5 @@
 /**
- * Chat store — channels, DMs, messages, and real-time socket listeners.
+ * Chat store — channels, DMs, messages, threads, reactions, and real-time socket listeners.
  *
  * API endpoints used:
  *   GET  /api/channels                         — list channels
@@ -8,9 +8,15 @@
  *   GET  /api/messages/dm/:dmId                — DM messages
  *   POST /api/messages/channel/:channelId      — send channel message
  *   POST /api/messages/dm/:dmId                — send DM message
+ *   GET  /api/messages/:messageId/thread       — get thread replies
+ *   POST /api/messages/:messageId/thread       — send thread reply
+ *   POST /api/reactions                        — add reaction
+ *   DELETE /api/reactions/:reactionId           — remove reaction
+ *   GET  /api/reactions/message/:messageId      — list reactions
  *
  * Socket events listened:
  *   message:created, message:updated, message:deleted
+ *   reaction:added, reaction:removed
  *   typing:start, typing:stop
  *   presence:online, presence:offline
  */
@@ -63,6 +69,15 @@ export interface Message {
   createdAt: string
   updatedAt: string | null
   deletedAt: string | null
+  threadReplyCount?: number
+}
+
+export interface Reaction {
+  id: string
+  messageId: string
+  userId: string
+  emoji: string
+  createdAt: string
 }
 
 interface TypingUser {
@@ -85,6 +100,14 @@ interface ChatState {
   hasMoreMessages: Record<string, boolean>
   cursors: Record<string, string | undefined>
 
+  // Thread state
+  activeThreadId: string | null
+  threadMessages: Message[]
+  isLoadingThread: boolean
+
+  // Reactions state
+  reactions: Record<string, Reaction[]> // keyed by messageId
+
   fetchChannels: () => Promise<void>
   fetchDms: () => Promise<void>
   fetchMessages: (targetId: string, type: 'channel' | 'dm') => Promise<void>
@@ -99,6 +122,17 @@ interface ChatState {
   setActiveDm: (dmId: string | null) => void
   setupSocketListeners: () => () => void
   emitTyping: (targetId: string, type: 'channel' | 'dm', isTyping: boolean) => void
+
+  // Thread actions
+  openThread: (messageId: string) => Promise<void>
+  closeThread: () => void
+  fetchThread: (messageId: string) => Promise<void>
+  sendThreadReply: (messageId: string, body: string) => Promise<void>
+
+  // Reaction actions
+  fetchReactions: (messageId: string) => Promise<void>
+  addReaction: (messageId: string, emoji: string) => Promise<void>
+  removeReaction: (messageId: string, emoji: string, userId: string) => Promise<void>
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -113,6 +147,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingMessages: false,
   hasMoreMessages: {},
   cursors: {},
+
+  // Thread state
+  activeThreadId: null,
+  threadMessages: [],
+  isLoadingThread: false,
+
+  // Reactions state
+  reactions: {},
 
   fetchChannels: async () => {
     set({ isLoadingChannels: true })
@@ -166,7 +208,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   fetchMoreMessages: async (targetId, type) => {
-    const { cursors, hasMoreMessages, messages } = get()
+    const { cursors, hasMoreMessages } = get()
     if (!hasMoreMessages[targetId]) return
 
     const cursor = cursors[targetId]
@@ -230,6 +272,77 @@ export const useChatStore = create<ChatState>((set, get) => ({
     socket.emit(event, payload)
   },
 
+  // Thread actions
+  openThread: async (messageId: string) => {
+    set({ activeThreadId: messageId, threadMessages: [], isLoadingThread: true })
+    await get().fetchThread(messageId)
+  },
+
+  closeThread: () => {
+    set({ activeThreadId: null, threadMessages: [], isLoadingThread: false })
+  },
+
+  fetchThread: async (messageId: string) => {
+    set({ isLoadingThread: true })
+    try {
+      const data = await apiClient.get<{ messages: Message[] }>(
+        `/messages/${messageId}/thread`,
+      )
+      set({ threadMessages: data.messages ?? [], isLoadingThread: false })
+    } catch {
+      set({ threadMessages: [], isLoadingThread: false })
+    }
+  },
+
+  sendThreadReply: async (messageId: string, body: string) => {
+    const reply = await apiClient.post<Message>(
+      `/messages/${messageId}/thread`,
+      { body },
+    )
+
+    // Optimistically add to thread messages
+    set((state) => ({
+      threadMessages: [...state.threadMessages, reply],
+    }))
+  },
+
+  // Reaction actions
+  fetchReactions: async (messageId: string) => {
+    try {
+      const data = await apiClient.get<Reaction[]>(
+        `/reactions/message/${messageId}`,
+      )
+      set((state) => ({
+        reactions: { ...state.reactions, [messageId]: data },
+      }))
+    } catch {
+      // Silently fail
+    }
+  },
+
+  addReaction: async (messageId: string, emoji: string) => {
+    try {
+      await apiClient.post('/reactions', { messageId, emoji })
+    } catch {
+      // Silently fail — socket will sync
+    }
+  },
+
+  removeReaction: async (messageId: string, emoji: string, userId: string) => {
+    const { reactions } = get()
+    const messageReactions = reactions[messageId] ?? []
+    const reaction = messageReactions.find(
+      (r) => r.emoji === emoji && r.userId === userId,
+    )
+    if (!reaction) return
+
+    try {
+      await apiClient.delete(`/reactions/${reaction.id}`)
+    } catch {
+      // Silently fail
+    }
+  },
+
   setupSocketListeners: () => {
     const socket = getSocket()
     if (!socket) return () => {}
@@ -237,6 +350,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const onMessageCreated = (message: Message) => {
       const targetId = message.channelId ?? message.dmId
       if (!targetId) return
+
+      // If this is a thread reply, route to thread if active
+      if (message.parentMessageId) {
+        const { activeThreadId, threadMessages } = get()
+        if (message.parentMessageId === activeThreadId) {
+          if (!threadMessages.some((m) => m.id === message.id)) {
+            set({ threadMessages: [...threadMessages, message] })
+          }
+        }
+
+        // Bump reply count on parent in main list
+        set((state) => {
+          const existing = state.messages[targetId] ?? []
+          return {
+            messages: {
+              ...state.messages,
+              [targetId]: existing.map((m) =>
+                m.id === message.parentMessageId
+                  ? { ...m, threadReplyCount: (m.threadReplyCount ?? 0) + 1 }
+                  : m,
+              ),
+            },
+          }
+        })
+        return
+      }
 
       set((state) => {
         const existing = state.messages[targetId] ?? []
@@ -300,6 +439,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ),
         },
       }))
+
+      // Also update thread messages if open
+      const { activeThreadId, threadMessages } = get()
+      if (activeThreadId) {
+        set({
+          threadMessages: threadMessages.map((m) =>
+            m.id === message.id ? message : m,
+          ),
+        })
+      }
     }
 
     const onMessageDeleted = (data: { messageId: string; channelId?: string; dmId?: string }) => {
@@ -314,6 +463,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ),
         },
       }))
+
+      // Also remove from thread if open
+      const { activeThreadId, threadMessages } = get()
+      if (activeThreadId) {
+        set({
+          threadMessages: threadMessages.filter((m) => m.id !== data.messageId),
+        })
+      }
+    }
+
+    const onReactionAdded = (reaction: Reaction) => {
+      set((state) => {
+        const existing = state.reactions[reaction.messageId] ?? []
+        if (existing.some((r) => r.id === reaction.id)) return state
+        return {
+          reactions: {
+            ...state.reactions,
+            [reaction.messageId]: [...existing, reaction],
+          },
+        }
+      })
+    }
+
+    const onReactionRemoved = (data: { reactionId: string; messageId: string }) => {
+      set((state) => {
+        const existing = state.reactions[data.messageId] ?? []
+        return {
+          reactions: {
+            ...state.reactions,
+            [data.messageId]: existing.filter((r) => r.id !== data.reactionId),
+          },
+        }
+      })
     }
 
     const onTypingStart = (data: { userId: string; channelId?: string; dmId?: string }) => {
@@ -350,6 +532,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     socket.on('message:created', onMessageCreated)
     socket.on('message:updated', onMessageUpdated)
     socket.on('message:deleted', onMessageDeleted)
+    socket.on('reaction:added', onReactionAdded)
+    socket.on('reaction:removed', onReactionRemoved)
     socket.on('typing:start', onTypingStart)
     socket.on('typing:stop', onTypingStop)
 
@@ -357,6 +541,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       socket.off('message:created', onMessageCreated)
       socket.off('message:updated', onMessageUpdated)
       socket.off('message:deleted', onMessageDeleted)
+      socket.off('reaction:added', onReactionAdded)
+      socket.off('reaction:removed', onReactionRemoved)
       socket.off('typing:start', onTypingStart)
       socket.off('typing:stop', onTypingStop)
     }

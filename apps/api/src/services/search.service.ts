@@ -1,12 +1,13 @@
 /**
  * Search service layer.
  *
- * Provides full-text search across messages, channels, users, and files.
- * Uses ILIKE for MVP simplicity; permission-aware filtering ensures users
- * only see content they have access to.
+ * Provides full-text search across messages, channels, and users using
+ * PostgreSQL tsvector / tsquery with GIN indexes for fast lookups.
+ * Permission-aware filtering ensures users only see content they have
+ * access to (channel membership, DM membership, public visibility).
  */
 
-import { eq, and, or, desc, ilike, isNull, lt, sql } from 'drizzle-orm'
+import { eq, and, or, desc, isNull, sql } from 'drizzle-orm'
 import {
   db,
   messages,
@@ -14,23 +15,38 @@ import {
   channelMembers,
   dmMembers,
   users,
-  files,
 } from '@smoker/db'
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_PAGE_LIMIT = 20
+const DEFAULT_PAGE_LIMIT = 25
 const SEARCH_ALL_TOP_N = 5
-const MAX_QUERY_LENGTH = 500
+const HEADLINE_OPTIONS = 'StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=15, MaxFragments=2'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function sanitizeQuery(raw: string): string {
-  return raw.trim().slice(0, MAX_QUERY_LENGTH).replace(/%/g, '\\%').replace(/_/g, '\\_')
+/**
+ * Convert a raw user query into a PostgreSQL tsquery string.
+ * Splits on whitespace and joins with & (AND) for multi-word queries.
+ * Appends :* for prefix matching on the last token.
+ */
+function toTsQuery(raw: string): string {
+  const tokens = raw
+    .trim()
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (tokens.length === 0) return ''
+
+  // All tokens except last use exact match; last token gets prefix match
+  return tokens
+    .map((t, i) => (i === tokens.length - 1 ? `${t}:*` : t))
+    .join(' & ')
 }
 
 function isAdminOrAbove(orgRole: string): boolean {
@@ -38,40 +54,7 @@ function isAdminOrAbove(orgRole: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// 1. searchAll
-// ---------------------------------------------------------------------------
-
-export async function searchAll(
-  query: string,
-  userId: string,
-  orgRole: string,
-  options: { cursor?: string; limit?: number } = {},
-) {
-  const q = sanitizeQuery(query)
-  if (!q) {
-    return { messages: [], channels: [], users: [], files: [] }
-  }
-
-  const pattern = `%${q}%`
-
-  // Run all four searches in parallel, each capped at top N
-  const [msgResult, channelResult, userResult, fileResult] = await Promise.all([
-    searchMessages(query, userId, orgRole, { limit: SEARCH_ALL_TOP_N }),
-    searchChannels(query),
-    searchUsers(query),
-    searchFiles(query, userId, orgRole, { limit: SEARCH_ALL_TOP_N }),
-  ])
-
-  return {
-    messages: msgResult.messages,
-    channels: channelResult,
-    users: userResult,
-    files: fileResult.files,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 2. searchMessages
+// 1. searchMessages
 // ---------------------------------------------------------------------------
 
 export async function searchMessages(
@@ -85,63 +68,82 @@ export async function searchMessages(
     limit?: number
   } = {},
 ) {
-  const q = sanitizeQuery(query)
-  if (!q) {
-    return { messages: [], nextCursor: null }
-  }
+  const tsq = toTsQuery(query)
+  if (!tsq) return { messages: [], nextCursor: null }
 
   const pageLimit = Math.min(options.limit ?? DEFAULT_PAGE_LIMIT, 100)
-  const pattern = `%${q}%`
 
-  // Build conditions
-  const conditions: ReturnType<typeof eq>[] = [
-    ilike(messages.body, pattern),
+  // Build the tsquery expression once
+  const tsquery = sql`to_tsquery('english', ${tsq})`
+  const tsvec = sql`to_tsvector('english', ${messages.body})`
+
+  // Conditions all queries share
+  const baseConditions = [
+    sql`${tsvec} @@ ${tsquery}`,
     isNull(messages.deletedAt),
   ]
 
   if (options.cursor) {
-    conditions.push(lt(messages.createdAt, new Date(options.cursor)))
+    baseConditions.push(
+      sql`${messages.createdAt} < ${new Date(options.cursor)}` as ReturnType<typeof eq>,
+    )
   }
 
   if (options.channelId) {
-    conditions.push(eq(messages.channelId, options.channelId))
+    baseConditions.push(eq(messages.channelId, options.channelId))
   }
 
   if (options.dmId) {
-    conditions.push(eq(messages.dmId, options.dmId))
+    baseConditions.push(eq(messages.dmId, options.dmId))
   }
 
+  // ts_headline for highlighted snippets
+  const headline = sql<string>`ts_headline('english', ${messages.body}, ${tsquery}, ${HEADLINE_OPTIONS})`
+
+  // ts_rank for relevance ordering
+  const rank = sql<number>`ts_rank(${tsvec}, ${tsquery})`
+
   if (isAdminOrAbove(orgRole)) {
-    // Admin can see all messages
     const rows = await db
       .select({
         id: messages.id,
         body: messages.body,
+        headline,
         userId: messages.userId,
         authorName: users.fullName,
         channelId: messages.channelId,
+        channelName: channels.name,
         dmId: messages.dmId,
         createdAt: messages.createdAt,
+        rank,
       })
       .from(messages)
       .innerJoin(users, eq(messages.userId, users.id))
-      .where(and(...conditions))
-      .orderBy(desc(messages.createdAt))
+      .leftJoin(channels, eq(messages.channelId, channels.id))
+      .where(and(...baseConditions))
+      .orderBy(desc(rank), desc(messages.createdAt))
       .limit(pageLimit + 1)
 
     const hasMore = rows.length > pageLimit
     const page = hasMore ? rows.slice(0, pageLimit) : rows
-    const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null
+    const nextCursor = hasMore
+      ? page[page.length - 1]!.createdAt.toISOString()
+      : null
 
     return { messages: page, nextCursor }
   }
 
   // Non-admin: only messages in channels/DMs user is a member of
-  // Use a subquery approach to check membership
+  // Also include public channels the user can see
   const accessibleChannelIds = db
     .select({ channelId: channelMembers.channelId })
     .from(channelMembers)
     .where(eq(channelMembers.userId, userId))
+
+  const publicChannelIds = db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(and(eq(channels.type, 'public'), eq(channels.status, 'active')))
 
   const accessibleDmIds = db
     .select({ dmId: dmMembers.dmId })
@@ -152,45 +154,76 @@ export async function searchMessages(
     .select({
       id: messages.id,
       body: messages.body,
+      headline,
       userId: messages.userId,
       authorName: users.fullName,
       channelId: messages.channelId,
+      channelName: channels.name,
       dmId: messages.dmId,
       createdAt: messages.createdAt,
+      rank,
     })
     .from(messages)
     .innerJoin(users, eq(messages.userId, users.id))
+    .leftJoin(channels, eq(messages.channelId, channels.id))
     .where(
       and(
-        ...conditions,
+        ...baseConditions,
         or(
           sql`${messages.channelId} IN (${accessibleChannelIds})`,
+          sql`${messages.channelId} IN (${publicChannelIds})`,
           sql`${messages.dmId} IN (${accessibleDmIds})`,
         ),
       ),
     )
-    .orderBy(desc(messages.createdAt))
+    .orderBy(desc(rank), desc(messages.createdAt))
     .limit(pageLimit + 1)
 
   const hasMore = rows.length > pageLimit
   const page = hasMore ? rows.slice(0, pageLimit) : rows
-  const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null
+  const nextCursor = hasMore
+    ? page[page.length - 1]!.createdAt.toISOString()
+    : null
 
   return { messages: page, nextCursor }
 }
 
 // ---------------------------------------------------------------------------
-// 3. searchChannels
+// 2. searchChannels
 // ---------------------------------------------------------------------------
 
-export async function searchChannels(query: string) {
-  const q = sanitizeQuery(query)
-  if (!q) {
-    return []
+export async function searchChannels(query: string, userId: string, orgRole?: string) {
+  const tsq = toTsQuery(query)
+  if (!tsq) return []
+
+  const tsquery = sql`to_tsquery('english', ${tsq})`
+  const tsvec = sql`to_tsvector('english', ${channels.name})`
+
+  const baseConditions = [
+    sql`${tsvec} @@ ${tsquery}`,
+    eq(channels.status, 'active'),
+  ]
+
+  if (orgRole && isAdminOrAbove(orgRole)) {
+    // Admin can see all channels
+    const rows = await db
+      .select({
+        id: channels.id,
+        name: channels.name,
+        topic: channels.topic,
+        type: channels.type,
+        scope: channels.scope,
+        status: channels.status,
+      })
+      .from(channels)
+      .where(and(...baseConditions))
+      .orderBy(channels.name)
+      .limit(SEARCH_ALL_TOP_N)
+
+    return rows
   }
 
-  const pattern = `%${q}%`
-
+  // Non-admin: public channels + channels user is a member of
   const rows = await db
     .select({
       id: channels.id,
@@ -201,10 +234,17 @@ export async function searchChannels(query: string) {
       status: channels.status,
     })
     .from(channels)
+    .leftJoin(
+      channelMembers,
+      and(eq(channels.id, channelMembers.channelId), eq(channelMembers.userId, userId)),
+    )
     .where(
       and(
-        eq(channels.status, 'active'),
-        or(ilike(channels.name, pattern), ilike(channels.topic, pattern)),
+        ...baseConditions,
+        or(
+          eq(channels.type, 'public'),
+          sql`${channelMembers.userId} IS NOT NULL`,
+        ),
       ),
     )
     .orderBy(channels.name)
@@ -214,16 +254,15 @@ export async function searchChannels(query: string) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. searchUsers
+// 3. searchUsers
 // ---------------------------------------------------------------------------
 
 export async function searchUsers(query: string) {
-  const q = sanitizeQuery(query)
-  if (!q) {
-    return []
-  }
+  const tsq = toTsQuery(query)
+  if (!tsq) return []
 
-  const pattern = `%${q}%`
+  const tsquery = sql`to_tsquery('english', ${tsq})`
+  const tsvec = sql`to_tsvector('english', ${users.fullName})`
 
   const rows = await db
     .select({
@@ -233,7 +272,12 @@ export async function searchUsers(query: string) {
       status: users.status,
     })
     .from(users)
-    .where(and(eq(users.status, 'active'), ilike(users.fullName, pattern)))
+    .where(
+      and(
+        eq(users.status, 'active'),
+        sql`${tsvec} @@ ${tsquery}`,
+      ),
+    )
     .orderBy(users.fullName)
     .limit(SEARCH_ALL_TOP_N)
 
@@ -241,91 +285,29 @@ export async function searchUsers(query: string) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. searchFiles
+// 4. searchAll
 // ---------------------------------------------------------------------------
 
-export async function searchFiles(
+export async function searchAll(
   query: string,
   userId: string,
   orgRole: string,
   options: { cursor?: string; limit?: number } = {},
 ) {
-  const q = sanitizeQuery(query)
-  if (!q) {
-    return { files: [], nextCursor: null }
+  const tsq = toTsQuery(query)
+  if (!tsq) {
+    return { messages: [], channels: [], users: [] }
   }
 
-  const pageLimit = Math.min(options.limit ?? DEFAULT_PAGE_LIMIT, 100)
-  const pattern = `%${q}%`
+  const [msgResult, channelResult, userResult] = await Promise.all([
+    searchMessages(query, userId, orgRole, { limit: SEARCH_ALL_TOP_N }),
+    searchChannels(query, userId, orgRole),
+    searchUsers(query),
+  ])
 
-  const conditions: ReturnType<typeof eq>[] = [
-    ilike(files.originalFilename, pattern),
-  ]
-
-  if (options.cursor) {
-    conditions.push(lt(files.createdAt, new Date(options.cursor)))
+  return {
+    messages: msgResult.messages,
+    channels: channelResult,
+    users: userResult,
   }
-
-  if (isAdminOrAbove(orgRole)) {
-    const rows = await db
-      .select({
-        id: files.id,
-        originalFilename: files.originalFilename,
-        mimeType: files.mimeType,
-        channelId: files.channelId,
-        dmId: files.dmId,
-        userId: files.userId,
-        createdAt: files.createdAt,
-      })
-      .from(files)
-      .where(and(...conditions))
-      .orderBy(desc(files.createdAt))
-      .limit(pageLimit + 1)
-
-    const hasMore = rows.length > pageLimit
-    const page = hasMore ? rows.slice(0, pageLimit) : rows
-    const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null
-
-    return { files: page, nextCursor }
-  }
-
-  // Non-admin: only files in channels/DMs user is a member of
-  const accessibleChannelIds = db
-    .select({ channelId: channelMembers.channelId })
-    .from(channelMembers)
-    .where(eq(channelMembers.userId, userId))
-
-  const accessibleDmIds = db
-    .select({ dmId: dmMembers.dmId })
-    .from(dmMembers)
-    .where(eq(dmMembers.userId, userId))
-
-  const rows = await db
-    .select({
-      id: files.id,
-      originalFilename: files.originalFilename,
-      mimeType: files.mimeType,
-      channelId: files.channelId,
-      dmId: files.dmId,
-      userId: files.userId,
-      createdAt: files.createdAt,
-    })
-    .from(files)
-    .where(
-      and(
-        ...conditions,
-        or(
-          sql`${files.channelId} IN (${accessibleChannelIds})`,
-          sql`${files.dmId} IN (${accessibleDmIds})`,
-        ),
-      ),
-    )
-    .orderBy(desc(files.createdAt))
-    .limit(pageLimit + 1)
-
-  const hasMore = rows.length > pageLimit
-  const page = hasMore ? rows.slice(0, pageLimit) : rows
-  const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null
-
-  return { files: page, nextCursor }
 }

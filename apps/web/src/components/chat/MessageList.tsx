@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { MessageBubble } from './MessageBubble'
-import { Spinner } from '@/components/ui/Spinner'
+import { MessageSkeleton } from '@/components/ui/Skeleton'
 
 const NEAR_BOTTOM_THRESHOLD = 150
 
@@ -14,9 +14,15 @@ export function MessageList() {
   const containerRef = useRef<HTMLDivElement>(null)
   const prevMessageCountRef = useRef(0)
 
+  // Filter out thread replies — only show top-level messages
+  const topLevelMessages = useMemo(
+    () => messages.filter((m) => !m.parentMessageId),
+    [messages],
+  )
+
   useEffect(() => {
-    const isNewMessage = messages.length > prevMessageCountRef.current
-    prevMessageCountRef.current = messages.length
+    const isNewMessage = topLevelMessages.length > prevMessageCountRef.current
+    prevMessageCountRef.current = topLevelMessages.length
 
     if (!isNewMessage) return
 
@@ -28,17 +34,22 @@ export function MessageList() {
     }
 
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [topLevelMessages])
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Spinner />
+      <div className="flex-1 overflow-hidden px-4 py-2 space-y-1">
+        <MessageSkeleton />
+        <MessageSkeleton />
+        <MessageSkeleton />
+        <MessageSkeleton />
+        <MessageSkeleton />
+        <MessageSkeleton />
       </div>
     )
   }
 
-  if (messages.length === 0) {
+  if (topLevelMessages.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-smoke-400">
         <p>No messages yet. Break the ice.</p>
@@ -48,7 +59,7 @@ export function MessageList() {
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-      {messages.map((msg) => (
+      {topLevelMessages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} />
       ))}
       <div ref={bottomRef} />

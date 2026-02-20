@@ -8,6 +8,7 @@ import { useSocket } from '@/hooks/useSocket'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 import { Spinner } from '@/components/ui/Spinner'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -46,10 +47,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex h-screen bg-smoke-900">
-      <Sidebar />
+      <ErrorBoundary>
+        <Sidebar />
+      </ErrorBoundary>
       <div className="flex flex-col flex-1 min-w-0">
         <Header />
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main className="flex-1 overflow-hidden">
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
+        </main>
       </div>
     </div>
   )

@@ -58,6 +58,8 @@ export const channels = pgTable(
       .where(
         sql`${table.scope} = 'venue' AND ${table.status} = 'active'`,
       ),
+    // Full-text search GIN index on channel name
+    index('idx_channels_name_fts').using('gin', sql`to_tsvector('english', ${table.name})`).where(sql`${table.status} = 'active'`),
   ],
 );
 

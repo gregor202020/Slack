@@ -1,7 +1,9 @@
 /**
- * Search routes — Full-text search across messages, channels, users, etc.
+ * Search routes -- Full-text search across messages, channels, users.
  *
- * Spec references: Sections 10.1-10.4
+ * GET /api/search?q=term&type=all|messages|channels|users&cursor=...&limit=25
+ *
+ * All endpoints require authentication. Query must be 2-100 characters.
  */
 
 import type { FastifyInstance } from 'fastify'
@@ -13,33 +15,17 @@ import {
   searchMessages,
   searchChannels,
   searchUsers,
-  searchFiles,
 } from '../../services/search.service.js'
 
 // ---------------------------------------------------------------------------
-// Inline Zod schemas
+// Zod schemas
 // ---------------------------------------------------------------------------
 
 const searchQuerySchema = z.object({
-  q: z.string().min(1).max(500),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-})
-
-const messageSearchQuerySchema = z.object({
-  q: z.string().min(1).max(500),
+  q: z.string().min(2).max(100),
+  type: z.enum(['all', 'messages', 'channels', 'users']).default('all'),
   channelId: z.string().uuid().optional(),
   dmId: z.string().uuid().optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-})
-
-const basicSearchQuerySchema = z.object({
-  q: z.string().min(1).max(500),
-})
-
-const fileSearchQuerySchema = z.object({
-  q: z.string().min(1).max(500),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 })
@@ -49,8 +35,7 @@ const fileSearchQuerySchema = z.object({
 // ---------------------------------------------------------------------------
 
 export async function searchRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/search — Search across all content types
-  // Rate limit: 30 per minute per user (spec Section 16.2)
+  // GET /api/search — Unified search endpoint with type filter
   app.get('/', {
     preHandler: [authenticate, validateQuery(searchQuerySchema)],
     config: {
@@ -61,64 +46,37 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
     },
     handler: async (request, reply) => {
       const { id, orgRole } = request.user!
-      const { q, cursor, limit } = request.query as z.infer<typeof searchQuerySchema>
-      const result = await searchAll(q, id, orgRole, { cursor, limit })
-      return reply.status(200).send(result)
-    },
-  })
-
-  // GET /api/search/messages — Search messages only
-  app.get('/messages', {
-    preHandler: [authenticate, validateQuery(messageSearchQuerySchema)],
-    config: {
-      rateLimit: {
-        max: 30,
-        timeWindow: '1 minute',
-      },
-    },
-    handler: async (request, reply) => {
-      const { id, orgRole } = request.user!
-      const { q, channelId, dmId, cursor, limit } = request.query as z.infer<
-        typeof messageSearchQuerySchema
+      const { q, type, channelId, dmId, cursor, limit } = request.query as z.infer<
+        typeof searchQuerySchema
       >
-      const result = await searchMessages(q, id, orgRole, {
-        channelId,
-        dmId,
-        cursor,
-        limit,
-      })
-      return reply.status(200).send(result)
-    },
-  })
 
-  // GET /api/search/channels — Search channels
-  app.get('/channels', {
-    preHandler: [authenticate, validateQuery(basicSearchQuerySchema)],
-    handler: async (request, reply) => {
-      const { q } = request.query as z.infer<typeof basicSearchQuerySchema>
-      const result = await searchChannels(q)
-      return reply.status(200).send(result)
-    },
-  })
+      switch (type) {
+        case 'messages': {
+          const result = await searchMessages(q, id, orgRole, {
+            channelId,
+            dmId,
+            cursor,
+            limit,
+          })
+          return reply.status(200).send(result)
+        }
 
-  // GET /api/search/users — Search users
-  app.get('/users', {
-    preHandler: [authenticate, validateQuery(basicSearchQuerySchema)],
-    handler: async (request, reply) => {
-      const { q } = request.query as z.infer<typeof basicSearchQuerySchema>
-      const result = await searchUsers(q)
-      return reply.status(200).send(result)
-    },
-  })
+        case 'channels': {
+          const result = await searchChannels(q, id, orgRole)
+          return reply.status(200).send(result)
+        }
 
-  // GET /api/search/files — Search files
-  app.get('/files', {
-    preHandler: [authenticate, validateQuery(fileSearchQuerySchema)],
-    handler: async (request, reply) => {
-      const { id, orgRole } = request.user!
-      const { q, cursor, limit } = request.query as z.infer<typeof fileSearchQuerySchema>
-      const result = await searchFiles(q, id, orgRole, { cursor, limit })
-      return reply.status(200).send(result)
+        case 'users': {
+          const result = await searchUsers(q)
+          return reply.status(200).send(result)
+        }
+
+        case 'all':
+        default: {
+          const result = await searchAll(q, id, orgRole, { cursor, limit })
+          return reply.status(200).send(result)
+        }
+      }
     },
   })
 }
