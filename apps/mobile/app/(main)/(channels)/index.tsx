@@ -25,7 +25,7 @@ import { fontSize, fontWeight } from '../../../src/theme/typography'
 export default function ChannelListScreen() {
   const router = useRouter()
   const navigation = useNavigation()
-  const { channels, fetchChannels, isLoadingChannels, setActiveChannel } = useChatStore()
+  const { channels, fetchChannels, isLoadingChannels, setActiveChannel, unreadCounts, fetchUnreadCounts } = useChatStore()
   const [search, setSearch] = useState('')
   const [refreshing, setRefreshing] = useState(false)
 
@@ -45,7 +45,8 @@ export default function ChannelListScreen() {
 
   useEffect(() => {
     fetchChannels()
-  }, [fetchChannels])
+    fetchUnreadCounts()
+  }, [fetchChannels, fetchUnreadCounts])
 
   const filteredChannels = search.trim()
     ? channels.filter((ch) =>
@@ -66,9 +67,9 @@ export default function ChannelListScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
-    await fetchChannels()
+    await Promise.all([fetchChannels(), fetchUnreadCounts()])
     setRefreshing(false)
-  }, [fetchChannels])
+  }, [fetchChannels, fetchUnreadCounts])
 
   const renderItem = useCallback(
     ({ item }: { item: Channel }) => (
@@ -76,12 +77,12 @@ export default function ChannelListScreen() {
         name={item.name}
         lastMessage={item.lastMessagePreview}
         lastMessageAt={item.lastMessageAt}
-        unreadCount={item.unreadCount}
+        unreadCount={unreadCounts[item.id] ?? item.unreadCount}
         isPrivate={item.type === 'private'}
         onPress={() => handlePress(item)}
       />
     ),
-    [handlePress],
+    [handlePress, unreadCounts],
   )
 
   if (isLoadingChannels && channels.length === 0) {

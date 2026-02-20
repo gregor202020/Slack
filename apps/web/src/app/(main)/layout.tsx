@@ -15,6 +15,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const { isAuthenticated, isLoading, fetchMe } = useAuthStore()
   const fetchChannels = useChatStore((s) => s.fetchChannels)
   const fetchDms = useChatStore((s) => s.fetchDms)
+  const fetchUnreadCounts = useChatStore((s) => s.fetchUnreadCounts)
 
   useSocket()
 
@@ -32,8 +33,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     if (isAuthenticated) {
       fetchChannels()
       fetchDms()
+      fetchUnreadCounts()
     }
-  }, [isAuthenticated, fetchChannels, fetchDms])
+  }, [isAuthenticated, fetchChannels, fetchDms, fetchUnreadCounts])
 
   if (isLoading) {
     return (

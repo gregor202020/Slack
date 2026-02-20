@@ -16,6 +16,7 @@ export function Sidebar() {
   const activeDmId = useChatStore((s) => s.activeDmId)
   const setActiveChannel = useChatStore((s) => s.setActiveChannel)
   const setActiveDm = useChatStore((s) => s.setActiveDm)
+  const unreadCounts = useChatStore((s) => s.unreadCounts)
   const user = useAuthStore((s) => s.user)
 
   const isAdmin = user?.orgRole === 'admin' || user?.orgRole === 'super_admin'
@@ -47,24 +48,32 @@ export function Sidebar() {
               <ChannelSkeleton />
             </>
           ) : (
-            channels.map((ch) => (
-              <button
-                key={ch.id}
-                onClick={() => {
-                  setActiveChannel(ch.id)
-                  router.push(`/channels/${ch.id}`)
-                }}
-                className={clsx(
-                  'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
-                  activeChannelId === ch.id
-                    ? 'bg-brand text-white'
-                    : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
-                )}
-              >
-                <span className="text-smoke-400">#</span>
-                <span className="truncate">{ch.name}</span>
-              </button>
-            ))
+            channels.map((ch) => {
+              const unread = unreadCounts[ch.id] ?? 0
+              return (
+                <button
+                  key={ch.id}
+                  onClick={() => {
+                    setActiveChannel(ch.id)
+                    router.push(`/channels/${ch.id}`)
+                  }}
+                  className={clsx(
+                    'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
+                    activeChannelId === ch.id
+                      ? 'bg-brand text-white'
+                      : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
+                  )}
+                >
+                  <span className="text-smoke-400">#</span>
+                  <span className={clsx('truncate flex-1 text-left', unread > 0 && 'font-bold text-smoke-100')}>{ch.name}</span>
+                  {unread > 0 && (
+                    <span className="rounded-full bg-brand text-white text-xs font-bold min-w-[20px] text-center px-1.5 py-0.5">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </button>
+              )
+            })
           )}
         </div>
 
@@ -82,24 +91,32 @@ export function Sidebar() {
               <DmSkeleton />
             </>
           ) : (
-            dms.map((dm) => (
-              <button
-                key={dm.id}
-                onClick={() => {
-                  setActiveDm(dm.id)
-                  router.push(`/dms/${dm.id}`)
-                }}
-                className={clsx(
-                  'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
-                  activeDmId === dm.id
-                    ? 'bg-brand text-white'
-                    : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
-                )}
-              >
-                <Avatar name={`DM ${dm.id.slice(0, 4)}`} size="sm" />
-                <span className="truncate">DM</span>
-              </button>
-            ))
+            dms.map((dm) => {
+              const unread = unreadCounts[dm.id] ?? 0
+              return (
+                <button
+                  key={dm.id}
+                  onClick={() => {
+                    setActiveDm(dm.id)
+                    router.push(`/dms/${dm.id}`)
+                  }}
+                  className={clsx(
+                    'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
+                    activeDmId === dm.id
+                      ? 'bg-brand text-white'
+                      : 'text-smoke-300 hover:bg-smoke-700 hover:text-smoke-100',
+                  )}
+                >
+                  <Avatar name={`DM ${dm.id.slice(0, 4)}`} size="sm" />
+                  <span className={clsx('truncate flex-1 text-left', unread > 0 && 'font-bold text-smoke-100')}>DM</span>
+                  {unread > 0 && (
+                    <span className="rounded-full bg-brand text-white text-xs font-bold min-w-[20px] text-center px-1.5 py-0.5">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </button>
+              )
+            })
           )}
         </div>
       </nav>

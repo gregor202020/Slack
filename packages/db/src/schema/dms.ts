@@ -6,7 +6,7 @@ import {
   primaryKey,
   index,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { users } from './users';
 
 // ============================================================================
@@ -57,6 +57,9 @@ export const dmMembers = pgTable(
       .notNull(),
     joinedAt: timestamp('joined_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
+      .notNull(),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true, mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
   },
   (table) => [

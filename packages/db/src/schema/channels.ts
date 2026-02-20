@@ -94,6 +94,9 @@ export const channelMembers = pgTable(
     joinedAt: timestamp('joined_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true, mode: 'date' })
+      .default(sql`now()`)
+      .notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.channelId, table.userId] }),

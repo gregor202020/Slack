@@ -29,6 +29,13 @@
       "when": 1771627200000,
       "tag": "0003_add_fts_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771713600000,
+      "tag": "0004_add_last_read_at",
+      "breakpoints": true
     }
   ]
 }

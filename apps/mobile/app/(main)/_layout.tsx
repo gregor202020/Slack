@@ -4,20 +4,32 @@
  * Sets up socket listeners on mount and cleans up on unmount.
  */
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { Tabs } from 'expo-router'
-import { Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { colors } from '../../src/theme/colors'
 import { fontSize, fontWeight } from '../../src/theme/typography'
 import { useChatStore } from '../../src/stores/chat'
 
 export default function MainLayout() {
   const setupSocketListeners = useChatStore((s) => s.setupSocketListeners)
+  const fetchUnreadCounts = useChatStore((s) => s.fetchUnreadCounts)
+  const unreadCounts = useChatStore((s) => s.unreadCounts)
+  const channels = useChatStore((s) => s.channels)
 
   useEffect(() => {
     const cleanup = setupSocketListeners()
     return cleanup
   }, [setupSocketListeners])
+
+  useEffect(() => {
+    fetchUnreadCounts()
+  }, [fetchUnreadCounts])
+
+  // Compute total unread count for channels tab badge
+  const totalChannelUnread = useMemo(() => {
+    return channels.reduce((sum, ch) => sum + (unreadCounts[ch.id] ?? 0), 0)
+  }, [channels, unreadCounts])
 
   return (
     <Tabs
@@ -34,7 +46,16 @@ export default function MainLayout() {
         options={{
           title: 'Channels',
           tabBarIcon: ({ color }) => (
-            <Text style={[styles.tabIcon, { color }]}>#</Text>
+            <View>
+              <Text style={[styles.tabIcon, { color }]}>#</Text>
+              {totalChannelUnread > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {totalChannelUnread > 99 ? '99+' : totalChannelUnread}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -85,5 +106,22 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: fontWeight.bold,
     marginBottom: -2,
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -12,
+    backgroundColor: colors.brand[500],
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
   },
 })

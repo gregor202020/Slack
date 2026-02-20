@@ -108,6 +108,9 @@ interface ChatState {
   // Reactions state
   reactions: Record<string, Reaction[]> // keyed by messageId
 
+  // Unread counts state
+  unreadCounts: Record<string, number> // keyed by channelId or dmId
+
   fetchChannels: () => Promise<void>
   fetchDms: () => Promise<void>
   fetchMessages: (targetId: string, type: 'channel' | 'dm') => Promise<void>
@@ -133,6 +136,10 @@ interface ChatState {
   fetchReactions: (messageId: string) => Promise<void>
   addReaction: (messageId: string, emoji: string) => Promise<void>
   removeReaction: (messageId: string, emoji: string, userId: string) => Promise<void>
+
+  // Unread actions
+  fetchUnreadCounts: () => Promise<void>
+  markAsRead: (channelId?: string, dmId?: string) => Promise<void>
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -155,6 +162,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Reactions state
   reactions: {},
+
+  // Unread counts state
+  unreadCounts: {},
 
   fetchChannels: async () => {
     set({ isLoadingChannels: true })
@@ -259,8 +269,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
 
-  setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
-  setActiveDm: (dmId) => set({ activeDmId: dmId }),
+  setActiveChannel: (channelId) => {
+    set({ activeChannelId: channelId })
+    if (channelId) {
+      get().markAsRead(channelId)
+    }
+  },
+  setActiveDm: (dmId) => {
+    set({ activeDmId: dmId })
+    if (dmId) {
+      get().markAsRead(undefined, dmId)
+    }
+  },
 
   emitTyping: (targetId, type, isTyping) => {
     const socket = getSocket()
@@ -343,6 +363,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  // Unread actions
+  fetchUnreadCounts: async () => {
+    try {
+      const data = await apiClient.get<{
+        channels: Record<string, number>
+        dms: Record<string, number>
+        total: number
+      }>('/unread')
+      set({ unreadCounts: { ...data.channels, ...data.dms } })
+
+      // Also update the unreadCount on individual channel/DM objects
+      set((state) => ({
+        channels: state.channels.map((ch) => ({
+          ...ch,
+          unreadCount: data.channels[ch.id] ?? 0,
+        })),
+        dms: state.dms.map((dm) => ({
+          ...dm,
+          unreadCount: data.dms[dm.id] ?? 0,
+        })),
+      }))
+    } catch {
+      // Silently fail
+    }
+  },
+
+  markAsRead: async (channelId?: string, dmId?: string) => {
+    if (!channelId && !dmId) return
+
+    const targetId = channelId || dmId
+    if (targetId) {
+      // Optimistically reset the count
+      set((state) => ({
+        unreadCounts: { ...state.unreadCounts, [targetId]: 0 },
+      }))
+
+      // Also reset on the channel/DM object
+      if (channelId) {
+        set((state) => ({
+          channels: state.channels.map((ch) =>
+            ch.id === channelId ? { ...ch, unreadCount: 0 } : ch,
+          ),
+        }))
+      }
+      if (dmId) {
+        set((state) => ({
+          dms: state.dms.map((dm) =>
+            dm.id === dmId ? { ...dm, unreadCount: 0 } : dm,
+          ),
+        }))
+      }
+    }
+
+    try {
+      await apiClient.post('/unread/read', { channelId, dmId })
+    } catch {
+      // Silently fail — the optimistic update stays
+    }
+  },
+
   setupSocketListeners: () => {
     const socket = getSocket()
     if (!socket) return () => {}
@@ -390,9 +470,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       })
 
-      // Update channel/DM last message preview
-      const { channels, dms } = get()
+      // Update channel/DM last message preview and unread counts
+      const { channels, dms, activeChannelId, activeDmId, unreadCounts } = get()
       if (message.channelId) {
+        const isActive = message.channelId === activeChannelId
         set({
           channels: channels.map((ch) =>
             ch.id === message.channelId
@@ -400,15 +481,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   ...ch,
                   lastMessageAt: message.createdAt,
                   lastMessagePreview: message.body.slice(0, 100),
-                  unreadCount:
-                    ch.id === get().activeChannelId
-                      ? ch.unreadCount
-                      : ch.unreadCount + 1,
+                  unreadCount: isActive ? ch.unreadCount : ch.unreadCount + 1,
                 }
               : ch,
           ),
         })
+        if (!isActive) {
+          set({
+            unreadCounts: {
+              ...unreadCounts,
+              [message.channelId]: (unreadCounts[message.channelId] ?? 0) + 1,
+            },
+          })
+        }
       } else if (message.dmId) {
+        const isActive = message.dmId === activeDmId
         set({
           dms: dms.map((dm) =>
             dm.id === message.dmId
@@ -416,14 +503,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   ...dm,
                   lastMessageAt: message.createdAt,
                   lastMessagePreview: message.body.slice(0, 100),
-                  unreadCount:
-                    dm.id === get().activeDmId
-                      ? dm.unreadCount
-                      : dm.unreadCount + 1,
+                  unreadCount: isActive ? dm.unreadCount : dm.unreadCount + 1,
                 }
               : dm,
           ),
         })
+        if (!isActive) {
+          set({
+            unreadCounts: {
+              ...unreadCounts,
+              [message.dmId]: (unreadCounts[message.dmId] ?? 0) + 1,
+            },
+          })
+        }
       }
     }
 

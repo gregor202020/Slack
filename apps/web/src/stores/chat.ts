@@ -57,6 +57,9 @@ interface ChatState {
   // Reactions state
   reactions: Record<string, Reaction[]> // keyed by messageId
 
+  // Unread counts state
+  unreadCounts: Record<string, number> // keyed by channelId or dmId
+
   fetchChannels: () => Promise<void>
   fetchDms: () => Promise<void>
   fetchMessages: (channelId?: string, dmId?: string) => Promise<void>
@@ -76,6 +79,10 @@ interface ChatState {
   fetchReactions: (messageId: string) => Promise<void>
   addReaction: (messageId: string, emoji: string) => Promise<void>
   removeReaction: (messageId: string, emoji: string) => Promise<void>
+
+  // Unread actions
+  fetchUnreadCounts: () => Promise<void>
+  markAsRead: (channelId?: string, dmId?: string) => Promise<void>
 }
 
 const typingTimeouts: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -112,6 +119,18 @@ export function setupSocketListeners(socket: Socket): () => void {
     if (msg.channelId === activeChannelId || msg.dmId === activeDmId) {
       if (messages.some((m) => m.id === msg.id)) return
       set({ messages: [...messages, msg] })
+    } else {
+      // Message is for a channel/DM that is NOT currently active — increment unread
+      const targetId = msg.channelId || msg.dmId
+      if (targetId) {
+        const { unreadCounts } = get()
+        set({
+          unreadCounts: {
+            ...unreadCounts,
+            [targetId]: (unreadCounts[targetId] ?? 0) + 1,
+          },
+        })
+      }
     }
   }
 
@@ -252,6 +271,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Reactions state
   reactions: {},
 
+  // Unread counts state
+  unreadCounts: {},
+
   fetchChannels: async () => {
     const data = await api<{ data: Channel[] }>('/api/channels')
     set({ channels: data.data || [] })
@@ -322,12 +344,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ activeChannelId: channelId, activeDmId: null, messages: [], activeThreadId: null, threadMessages: [], reactions: {} })
     if (channelId) {
       get().fetchMessages(channelId)
+      get().markAsRead(channelId)
     }
   },
 
   setActiveDm: (dmId: string) => {
     set({ activeDmId: dmId, activeChannelId: null, messages: [], activeThreadId: null, threadMessages: [], reactions: {} })
     get().fetchMessages(undefined, dmId)
+    get().markAsRead(undefined, dmId)
   },
 
   // Thread actions
@@ -397,6 +421,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
     } catch {
       // Silently fail
+    }
+  },
+
+  // Unread actions
+  fetchUnreadCounts: async () => {
+    try {
+      const data = await api<{ channels: Record<string, number>; dms: Record<string, number>; total: number }>('/api/unread')
+      set({ unreadCounts: { ...data.channels, ...data.dms } })
+    } catch {
+      // Silently fail
+    }
+  },
+
+  markAsRead: async (channelId?: string, dmId?: string) => {
+    if (!channelId && !dmId) return
+
+    // Optimistically reset the count
+    const targetId = channelId || dmId
+    if (targetId) {
+      set((state) => ({
+        unreadCounts: { ...state.unreadCounts, [targetId]: 0 },
+      }))
+    }
+
+    try {
+      await api('/api/unread/read', {
+        method: 'POST',
+        body: JSON.stringify({ channelId, dmId }),
+      })
+    } catch {
+      // Silently fail — the optimistic update stays
     }
   },
 }))
