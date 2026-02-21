@@ -45,6 +45,27 @@ const updateIpAllowlistSchema = z.object({
 export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/api-keys — List API keys
   app.get('/', {
+    schema: {
+      summary: 'List API keys',
+      description: 'Returns all API keys. Admin or Super admin only.',
+      tags: ['API Keys'],
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+              prefix: { type: 'string', description: 'First 8 characters of the key' },
+              scopes: { type: 'array', items: { type: 'object', properties: { action: { type: 'string' }, resource: { type: 'string' } } } },
+              createdAt: { type: 'string', format: 'date-time' },
+              lastUsedAt: { type: 'string', format: 'date-time', nullable: true },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (_request, reply) => {
       const result = await listApiKeys()
@@ -54,6 +75,37 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/admin/api-keys — Create a new API key
   app.post('/', {
+    schema: {
+      summary: 'Create API key',
+      description: 'Creates a new API key with specified scopes. Admin or Super admin only.',
+      tags: ['API Keys'],
+      body: {
+        type: 'object',
+        required: ['name', 'scopes'],
+        properties: {
+          name: { type: 'string', description: 'Descriptive name for the API key' },
+          scopes: {
+            type: 'array',
+            items: { type: 'object', required: ['action', 'resource'], properties: { action: { type: 'string' }, resource: { type: 'string' } } },
+            minItems: 1,
+          },
+          ipAllowlist: { type: 'array', items: { type: 'string' }, description: 'Allowed IP addresses' },
+          rateLimit: { type: 'integer', description: 'Custom rate limit (requests per minute)' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string' },
+            key: { type: 'string', description: 'Full API key (only shown once)' },
+            prefix: { type: 'string' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
     preHandler: [
       authenticate,
       requireRole('admin', 'super_admin'),
@@ -75,6 +127,16 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/admin/api-keys/:keyId — Get API key details
   app.get('/:keyId', {
+    schema: {
+      summary: 'Get API key details',
+      description: 'Returns details for a specific API key.',
+      tags: ['API Keys'],
+      params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object' },
+        404: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { keyId } = request.params as { keyId: string }
@@ -85,6 +147,26 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH /api/admin/api-keys/:keyId/scopes — Update API key scopes
   app.patch('/:keyId/scopes', {
+    schema: {
+      summary: 'Update API key scopes',
+      description: 'Replaces the scopes on an API key.',
+      tags: ['API Keys'],
+      params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        required: ['scopes'],
+        properties: {
+          scopes: {
+            type: 'array',
+            items: { type: 'object', required: ['action', 'resource'], properties: { action: { type: 'string' }, resource: { type: 'string' } } },
+            minItems: 1,
+          },
+        },
+      },
+      response: {
+        200: { type: 'object' },
+      },
+    },
     preHandler: [
       authenticate,
       requireRole('admin', 'super_admin'),
@@ -102,6 +184,22 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH /api/admin/api-keys/:keyId/ip-allowlist — Update IP allowlist
   app.patch('/:keyId/ip-allowlist', {
+    schema: {
+      summary: 'Update IP allowlist',
+      description: 'Updates the IP allowlist for an API key.',
+      tags: ['API Keys'],
+      params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        required: ['ipAllowlist'],
+        properties: {
+          ipAllowlist: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      response: {
+        200: { type: 'object' },
+      },
+    },
     preHandler: [
       authenticate,
       requireRole('admin', 'super_admin'),
@@ -119,6 +217,21 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/admin/api-keys/:keyId/rotate — Rotate API key
   app.post('/:keyId/rotate', {
+    schema: {
+      summary: 'Rotate API key',
+      description: 'Generates a new key value while preserving the key metadata.',
+      tags: ['API Keys'],
+      params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', description: 'New API key value (only shown once)' },
+            prefix: { type: 'string' },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -131,6 +244,15 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/admin/api-keys/:keyId/revoke — Revoke API key
   app.post('/:keyId/revoke', {
+    schema: {
+      summary: 'Revoke API key',
+      description: 'Permanently revokes an API key, disabling all future requests.',
+      tags: ['API Keys'],
+      params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { success: { type: 'boolean' } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!

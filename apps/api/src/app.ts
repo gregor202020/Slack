@@ -15,6 +15,7 @@
 import Fastify, { type FastifyInstance, type FastifyError } from 'fastify'
 import { randomBytes } from 'node:crypto'
 import { registerPlugins } from './plugins/index.js'
+import { registerSwagger } from './plugins/swagger.js'
 import { registerRoutes } from './routes/index.js'
 import { AppError, ValidationError, InternalError } from './lib/errors.js'
 import { getConfig } from './lib/config.js'
@@ -106,6 +107,9 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // --- Register plugins ---
   await registerPlugins(app)
+
+  // --- Register Swagger (before routes so it can collect schemas) ---
+  await registerSwagger(app)
 
   // --- Register routes ---
   await registerRoutes(app)

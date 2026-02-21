@@ -44,6 +44,50 @@ const bookmarkQuerySchema = z.object({
 export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/bookmarks — List current user's bookmarks
   app.get('/', {
+    schema: {
+      summary: 'List bookmarks',
+      description: 'Returns the current user\'s bookmarked messages.',
+      tags: ['Bookmarks'],
+      querystring: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string' },
+          limit: { type: 'integer', minimum: 1, maximum: 100 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  messageId: { type: 'string', format: 'uuid' },
+                  note: { type: 'string', nullable: true },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+            nextCursor: { type: 'string', nullable: true },
+          },
+        },
+        422: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string' },
+                message: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -64,6 +108,30 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/bookmarks — Add a bookmark
   app.post('/', {
+    schema: {
+      summary: 'Add bookmark',
+      description: 'Bookmarks a message with an optional note.',
+      tags: ['Bookmarks'],
+      body: {
+        type: 'object',
+        required: ['messageId'],
+        properties: {
+          messageId: { type: 'string', format: 'uuid' },
+          note: { type: 'string', maxLength: 500 },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            messageId: { type: 'string', format: 'uuid' },
+            note: { type: 'string', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, validateBody(addBookmarkSchema)],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -75,6 +143,27 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH /api/bookmarks/:bookmarkId — Update bookmark note
   app.patch('/:bookmarkId', {
+    schema: {
+      summary: 'Update bookmark note',
+      description: 'Updates the note on a bookmark.',
+      tags: ['Bookmarks'],
+      params: { type: 'object', required: ['bookmarkId'], properties: { bookmarkId: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        properties: {
+          note: { type: 'string', maxLength: 500, nullable: true },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            note: { type: 'string', nullable: true },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, validateBody(updateBookmarkNoteSchema)],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -87,6 +176,15 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/bookmarks/:bookmarkId — Remove a bookmark
   app.delete('/:bookmarkId', {
+    schema: {
+      summary: 'Remove bookmark',
+      description: 'Removes a bookmark.',
+      tags: ['Bookmarks'],
+      params: { type: 'object', required: ['bookmarkId'], properties: { bookmarkId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { success: { type: 'boolean' } } },
+      },
+    },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id } = request.user!

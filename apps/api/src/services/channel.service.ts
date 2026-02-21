@@ -715,37 +715,3 @@ export async function updateChannelSettings(
   })
 }
 
-// ---------------------------------------------------------------------------
-// 15. pinMessage — TODO: Schema does not have pinnedAt/pinnedBy on messages
-// ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function pinMessage(
-  _channelId: string,
-  _messageId: string,
-  _userId: string,
-  _orgRole: string,
-): Promise<never> {
-  // TODO: Implement once pinned_messages table or pinnedAt/pinnedBy columns are added
-  throw new Error('Not implemented: pin message requires schema changes')
-}
-
-// ---------------------------------------------------------------------------
-// 16. unpinMessage — TODO
-// ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function unpinMessage(_channelId: string, _messageId: string): Promise<never> {
-  // TODO: Implement once pinned_messages table or pinnedAt/pinnedBy columns are added
-  throw new Error('Not implemented: unpin message requires schema changes')
-}
-
-// ---------------------------------------------------------------------------
-// 17. listPinnedMessages — TODO
-// ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function listPinnedMessages(_channelId: string): Promise<never> {
-  // TODO: Implement once pinned_messages table or pinnedAt/pinnedBy columns are added
-  throw new Error('Not implemented: list pinned messages requires schema changes')
-}

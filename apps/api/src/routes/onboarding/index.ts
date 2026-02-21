@@ -25,6 +25,20 @@ const completeOnboardingWithVenueSchema = completeOnboardingSchema.extend({
 export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/onboarding/status -- Check onboarding status
   app.get('/status', {
+    schema: {
+      summary: 'Get onboarding status',
+      description: 'Returns whether the current user has completed onboarding.',
+      tags: ['Onboarding'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            onboardingComplete: { type: 'boolean' },
+            requiredSteps: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const status = await getOnboardingStatus(request.user!.id)
@@ -34,6 +48,33 @@ export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/onboarding/complete -- Submit onboarding form
   app.post('/complete', {
+    schema: {
+      summary: 'Complete onboarding',
+      description: 'Submits the onboarding form with required profile information.',
+      tags: ['Onboarding'],
+      body: {
+        type: 'object',
+        required: ['fullName'],
+        properties: {
+          fullName: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          address: { type: 'string' },
+          positionId: { type: 'string', format: 'uuid' },
+          venueId: { type: 'string', format: 'uuid' },
+          timezone: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            onboardingComplete: { type: 'boolean' },
+          },
+        },
+        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     preHandler: [authenticate, validateBody(completeOnboardingWithVenueSchema)],
     handler: async (request, reply) => {
       const data = request.body as z.infer<typeof completeOnboardingWithVenueSchema>
@@ -52,6 +93,23 @@ export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/onboarding/positions -- List available positions
   app.get('/positions', {
+    schema: {
+      summary: 'List positions',
+      description: 'Returns all available positions for selection during onboarding.',
+      tags: ['Onboarding'],
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (_request, reply) => {
       const result = await listPositions()
@@ -61,6 +119,24 @@ export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/onboarding/venues -- List available venues for selection
   app.get('/venues', {
+    schema: {
+      summary: 'List venues for onboarding',
+      description: 'Returns all available venues the user can select during onboarding.',
+      tags: ['Onboarding'],
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+              address: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (_request, reply) => {
       const result = await listVenuesForOnboarding()

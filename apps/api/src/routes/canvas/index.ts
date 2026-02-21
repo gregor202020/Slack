@@ -13,6 +13,29 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/canvas/channel/:channelId — Get Canvas for a channel
   // One Canvas per channel (spec Section 11.1)
   app.get('/channel/:channelId', {
+    schema: {
+      summary: 'Get channel Canvas',
+      description: 'Returns the Canvas document for a channel (creates one if none exists).',
+      tags: ['Canvas'],
+      params: { type: 'object', required: ['channelId'], properties: { channelId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                channelId: { type: 'string', format: 'uuid' },
+                yjsState: { type: 'string', description: 'Base64-encoded Yjs document state' },
+                isLocked: { type: 'boolean' },
+                version: { type: 'integer' },
+              },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
@@ -26,6 +49,23 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
   // PATCH /api/canvas/channel/:channelId — Update Canvas (Yjs update)
   // Rate limit: 60 Yjs updates per minute per user (spec Section 11.6)
   app.patch('/channel/:channelId', {
+    schema: {
+      summary: 'Update Canvas',
+      description: 'Applies a Yjs update to the Canvas document.',
+      tags: ['Canvas'],
+      params: { type: 'object', required: ['channelId'], properties: { channelId: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        required: ['update'],
+        properties: {
+          update: { type: 'string', description: 'Base64-encoded Yjs update' },
+        },
+      },
+      response: {
+        200: { type: 'object', properties: { data: { type: 'object' } } },
+        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     preHandler: [authenticate, requireChannelMembership('channelId')],
     config: {
       rateLimit: {
@@ -71,6 +111,16 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/canvas/channel/:channelId/lock — Lock Canvas (read-only)
   // Channel owner or Admin+ (spec Section 11.5)
   app.post('/channel/:channelId/lock', {
+    schema: {
+      summary: 'Lock Canvas',
+      description: 'Locks the Canvas, making it read-only. Channel owner or Admin+ only.',
+      tags: ['Canvas'],
+      params: { type: 'object', required: ['channelId'], properties: { channelId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { data: { type: 'object' } } },
+        403: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
@@ -87,6 +137,15 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/canvas/channel/:channelId/unlock — Unlock Canvas
   app.post('/channel/:channelId/unlock', {
+    schema: {
+      summary: 'Unlock Canvas',
+      description: 'Unlocks the Canvas, allowing edits again.',
+      tags: ['Canvas'],
+      params: { type: 'object', required: ['channelId'], properties: { channelId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { data: { type: 'object' } } },
+      },
+    },
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
@@ -103,6 +162,29 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/canvas/channel/:channelId/versions — Get Canvas version history
   app.get('/channel/:channelId/versions', {
+    schema: {
+      summary: 'Get Canvas version history',
+      description: 'Returns paginated version history of a Canvas document.',
+      tags: ['Canvas'],
+      params: { type: 'object', required: ['channelId'], properties: { channelId: { type: 'string', format: 'uuid' } } },
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'string', default: '1' },
+          limit: { type: 'string', default: '20' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { type: 'object' } },
+            totalPages: { type: 'integer' },
+            currentPage: { type: 'integer' },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId } = request.params as { channelId: string }
@@ -126,6 +208,22 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/canvas/channel/:channelId/revert/:versionId — Revert to a version
   app.post('/channel/:channelId/revert/:versionId', {
+    schema: {
+      summary: 'Revert Canvas to version',
+      description: 'Reverts the Canvas document to a specific previous version.',
+      tags: ['Canvas'],
+      params: {
+        type: 'object',
+        required: ['channelId', 'versionId'],
+        properties: {
+          channelId: { type: 'string', format: 'uuid' },
+          versionId: { type: 'string', format: 'uuid' },
+        },
+      },
+      response: {
+        200: { type: 'object', properties: { data: { type: 'object' } } },
+      },
+    },
     preHandler: [authenticate, requireChannelMembership('channelId')],
     handler: async (request, reply) => {
       const { channelId, versionId } = request.params as {
@@ -147,9 +245,32 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/canvas/templates — List Canvas templates
   app.get('/templates', {
+    schema: {
+      summary: 'List Canvas templates',
+      description: 'Returns all available Canvas templates.',
+      tags: ['Canvas'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  name: { type: 'string' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (_request, reply) => {
-      const templates = canvasService.listTemplates()
+      const templates = await canvasService.listTemplates()
 
       return reply.status(200).send({ data: templates })
     },
@@ -157,6 +278,35 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/canvas/templates — Create a Canvas template
   app.post('/templates', {
+    schema: {
+      summary: 'Create Canvas template',
+      description: 'Creates a new Canvas template. Admin or Super admin only.',
+      tags: ['Canvas'],
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', description: 'Template name' },
+          yjsState: { type: 'string', description: 'Base64-encoded Yjs document state' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                name: { type: 'string' },
+                createdAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
+        },
+        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { name, yjsState: yjsStateBase64 } = request.body as {
@@ -185,7 +335,7 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
         doc.destroy()
       }
 
-      const template = canvasService.createTemplate(name.trim(), yjsBuffer)
+      const template = await canvasService.createTemplate(name.trim(), yjsBuffer)
 
       return reply.status(201).send({ data: template })
     },
@@ -193,11 +343,20 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/canvas/templates/:templateId — Delete a Canvas template
   app.delete('/templates/:templateId', {
+    schema: {
+      summary: 'Delete Canvas template',
+      description: 'Deletes a Canvas template. Admin or Super admin only.',
+      tags: ['Canvas'],
+      params: { type: 'object', required: ['templateId'], properties: { templateId: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { data: { type: 'object', properties: { success: { type: 'boolean' } } } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { templateId } = request.params as { templateId: string }
 
-      const result = canvasService.deleteTemplate(templateId)
+      const result = await canvasService.deleteTemplate(templateId)
 
       return reply.status(200).send({ data: result })
     },

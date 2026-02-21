@@ -10,6 +10,7 @@ import { db } from '@smoker/db'
 import { canvas, canvasVersions, channels } from '@smoker/db/schema'
 import { eq, desc, sql, count } from 'drizzle-orm'
 import { emitToChannel } from '../plugins/socket.js'
+import { getRedis } from '../lib/redis.js'
 import {
   NotFoundError,
   ForbiddenError,
@@ -25,17 +26,18 @@ const MAX_CANVAS_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
 const AUTO_VERSION_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 // ---------------------------------------------------------------------------
-// In-memory template store (TODO: persist to DB with a canvas_templates table)
+// Redis-backed template store
 // ---------------------------------------------------------------------------
 
 interface CanvasTemplate {
   id: string
   name: string
-  yjsState: Buffer
-  createdAt: Date
+  yjsState: string // base64-encoded
+  createdAt: string // ISO string
 }
 
-const templateStore = new Map<string, CanvasTemplate>()
+const TEMPLATE_KEY_PREFIX = 'canvas:template:'
+const TEMPLATE_LIST_KEY = 'canvas:templates:list'
 
 function generateTemplateId(): string {
   return crypto.randomUUID()
@@ -459,12 +461,32 @@ export async function revertToVersion(
 /**
  * List all available canvas templates.
  */
-export function listTemplates() {
-  const templates = Array.from(templateStore.values()).map((t) => ({
-    id: t.id,
-    name: t.name,
-    createdAt: t.createdAt,
-  }))
+export async function listTemplates() {
+  const redis = getRedis()
+  const templateIds = await redis.smembers(TEMPLATE_LIST_KEY)
+
+  if (templateIds.length === 0) {
+    return []
+  }
+
+  const pipeline = redis.pipeline()
+  for (const id of templateIds) {
+    pipeline.get(`${TEMPLATE_KEY_PREFIX}${id}`)
+  }
+  const results = await pipeline.exec()
+
+  const templates: { id: string; name: string; createdAt: string }[] = []
+
+  for (const result of results ?? []) {
+    const [err, raw] = result
+    if (err || !raw) continue
+    const template = JSON.parse(raw as string) as CanvasTemplate
+    templates.push({
+      id: template.id,
+      name: template.name,
+      createdAt: template.createdAt,
+    })
+  }
 
   return templates
 }
@@ -472,33 +494,41 @@ export function listTemplates() {
 /**
  * Create a new canvas template.
  */
-export function createTemplate(name: string, yjsState: Buffer) {
+export async function createTemplate(name: string, yjsState: Buffer) {
+  const redis = getRedis()
   const id = generateTemplateId()
+  const now = new Date().toISOString()
+
   const template: CanvasTemplate = {
     id,
     name,
-    yjsState,
-    createdAt: new Date(),
+    yjsState: yjsState.toString('base64'),
+    createdAt: now,
   }
 
-  templateStore.set(id, template)
+  await redis.set(`${TEMPLATE_KEY_PREFIX}${id}`, JSON.stringify(template))
+  await redis.sadd(TEMPLATE_LIST_KEY, id)
 
   return {
     id: template.id,
     name: template.name,
-    createdAt: template.createdAt,
+    createdAt: now,
   }
 }
 
 /**
  * Delete a canvas template.
  */
-export function deleteTemplate(templateId: string) {
-  const template = templateStore.get(templateId)
-  if (!template) {
+export async function deleteTemplate(templateId: string) {
+  const redis = getRedis()
+  const raw = await redis.get(`${TEMPLATE_KEY_PREFIX}${templateId}`)
+
+  if (!raw) {
     throw new NotFoundError('Template not found', 'TEMPLATE_NOT_FOUND')
   }
 
-  templateStore.delete(templateId)
+  await redis.del(`${TEMPLATE_KEY_PREFIX}${templateId}`)
+  await redis.srem(TEMPLATE_LIST_KEY, templateId)
+
   return { id: templateId }
 }

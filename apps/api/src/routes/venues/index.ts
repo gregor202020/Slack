@@ -57,6 +57,7 @@ const updatePositionSchema = z.object({
 export async function venueRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/venues — List all venues
   app.get('/', {
+    schema: { summary: 'List venues', description: 'Returns all venues visible to the current user.', tags: ['Venues'], response: { 200: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' }, address: { type: 'string' }, isArchived: { type: 'boolean' } } } } } },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id, orgRole } = request.user!
@@ -68,6 +69,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/venues — Create a new venue
   // Only org-level Admin+ can create venues (spec Section 5.2)
   app.post('/', {
+    schema: { summary: 'Create venue', description: 'Creates a new venue. Admin or Super admin only.', tags: ['Venues'], body: { type: 'object', required: ['name', 'address'], properties: { name: { type: 'string' }, address: { type: 'string' } } }, response: { 201: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' }, address: { type: 'string' }, createdAt: { type: 'string', format: 'date-time' } } } } },
     preHandler: [authenticate, requireRole('admin', 'super_admin'), validateBody(createVenueSchema)],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -80,6 +82,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/venues/:venueId — Get venue details
   app.get('/:venueId', {
+    schema: { summary: 'Get venue details', description: 'Returns full details for a venue.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'object' }, 404: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } } } },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id, orgRole } = request.user!
@@ -92,6 +95,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
   // PATCH /api/venues/:venueId — Update venue settings
   // Venue-scoped Admin or org Admin+ (spec Section 6.2)
   app.patch('/:venueId', {
+    schema: { summary: 'Update venue', description: 'Updates venue name or address. Venue admin or org Admin+.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, body: { type: 'object', properties: { name: { type: 'string' }, address: { type: 'string' } } }, response: { 200: { type: 'object' } } },
     preHandler: [
       authenticate,
       requireVenueRole('venueId', 'admin', 'super_admin'),
@@ -110,6 +114,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/venues/:venueId/archive — Archive a venue
   // Super admin only (spec Section 6.3)
   app.post('/:venueId/archive', {
+    schema: { summary: 'Archive venue', description: 'Archives a venue. Super admin only.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'object', properties: { success: { type: 'boolean' } } } } },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -123,6 +128,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/venues/:venueId/unarchive — Unarchive a venue
   // Super admin only (spec Section 6.3)
   app.post('/:venueId/unarchive', {
+    schema: { summary: 'Unarchive venue', description: 'Restores an archived venue. Super admin only.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'object', properties: { success: { type: 'boolean' } } } } },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -135,6 +141,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/venues/:venueId/members — List venue members
   app.get('/:venueId/members', {
+    schema: { summary: 'List venue members', description: 'Returns paginated venue members.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, querystring: { type: 'object', properties: { cursor: { type: 'string' }, limit: { type: 'integer' } } }, response: { 200: { type: 'object', properties: { data: { type: 'array', items: { type: 'object' } }, nextCursor: { type: 'string', nullable: true } } }, 422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } } } },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { venueId } = request.params as { venueId: string }
@@ -148,6 +155,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/venues/:venueId/members — Add user to venue
   app.post('/:venueId/members', {
+    schema: { summary: 'Add venue member', description: 'Adds a user to a venue with a specified role. Venue admin required.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, body: { type: 'object', required: ['userId'], properties: { userId: { type: 'string', format: 'uuid' }, venueRole: { type: 'string', enum: ['basic', 'mid', 'admin'], default: 'basic' } } }, response: { 201: { type: 'object', properties: { success: { type: 'boolean' } } } } },
     preHandler: [
       authenticate,
       requireVenueRole('venueId', 'admin', 'super_admin'),
@@ -165,6 +173,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/venues/:venueId/members/:userId — Remove user from venue
   app.delete('/:venueId/members/:userId', {
+    schema: { summary: 'Remove venue member', description: 'Removes a user from a venue.', tags: ['Venues'], params: { type: 'object', required: ['venueId', 'userId'], properties: { venueId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'object', properties: { success: { type: 'boolean' } } } } },
     preHandler: [authenticate, requireVenueRole('venueId', 'admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -177,6 +186,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH /api/venues/:venueId/members/:userId/role — Change user's venue role
   app.patch('/:venueId/members/:userId/role', {
+    schema: { summary: 'Change venue member role', description: 'Changes a user\'s role within a venue.', tags: ['Venues'], params: { type: 'object', required: ['venueId', 'userId'], properties: { venueId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' } } }, body: { type: 'object', required: ['venueRole'], properties: { venueRole: { type: 'string', enum: ['basic', 'mid', 'admin'] } } }, response: { 200: { type: 'object', properties: { success: { type: 'boolean' } } } } },
     preHandler: [
       authenticate,
       requireVenueRole('venueId', 'admin', 'super_admin'),
@@ -194,6 +204,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/venues/:venueId/channels — List venue-scoped channels
   app.get('/:venueId/channels', {
+    schema: { summary: 'List venue channels', description: 'Returns all channels scoped to a venue.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'array', items: { type: 'object' } } } },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { venueId } = request.params as { venueId: string }
@@ -206,6 +217,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/venues/positions — List all positions (org-wide)
   app.get('/positions/list', {
+    schema: { summary: 'List positions', description: 'Returns all positions defined across the org.', tags: ['Venues'], response: { 200: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' } } } } } },
     preHandler: [authenticate],
     handler: async (_request, reply) => {
       const result = await listPositions()
@@ -215,6 +227,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/venues/positions — Create a position
   app.post('/positions', {
+    schema: { summary: 'Create position', description: 'Creates a new position. Admin or Super admin only.', tags: ['Venues'], body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 100 } } }, response: { 201: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' } } } } },
     preHandler: [
       authenticate,
       requireRole('admin', 'super_admin'),
@@ -231,6 +244,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH /api/venues/positions/:positionId — Update a position
   app.patch('/positions/:positionId', {
+    schema: { summary: 'Update position', description: 'Updates a position name. Admin or Super admin only.', tags: ['Venues'], params: { type: 'object', required: ['positionId'], properties: { positionId: { type: 'string', format: 'uuid' } } }, body: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 100 } } }, response: { 200: { type: 'object' } } },
     preHandler: [
       authenticate,
       requireRole('admin', 'super_admin'),
@@ -248,6 +262,26 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/venues/positions/:positionId — Delete a position
   app.delete('/positions/:positionId', {
+    schema: {
+      summary: 'Delete position',
+      description: 'Deletes a position. Admin or Super admin only.',
+      tags: ['Venues'],
+      params: {
+        type: 'object',
+        required: ['positionId'],
+        properties: {
+          positionId: { type: 'string', format: 'uuid' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!

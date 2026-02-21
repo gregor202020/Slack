@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useChatStore } from '@/stores/chat'
+import { useToast } from '@/hooks/useToast'
 import { MessageBubble } from './MessageBubble'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -12,6 +13,8 @@ export function ThreadPanel() {
   const messages = useChatStore((s) => s.messages)
   const closeThread = useChatStore((s) => s.closeThread)
   const sendThreadReply = useChatStore((s) => s.sendThreadReply)
+
+  const toast = useToast()
 
   const [body, setBody] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -34,11 +37,11 @@ export function ThreadPanel() {
       await sendThreadReply(trimmed)
       setBody('')
     } catch {
-      // TODO: show error toast
+      toast.error('Failed to send reply. Please try again.')
     } finally {
       setIsSending(false)
     }
-  }, [body, isSending, sendThreadReply])
+  }, [body, isSending, sendThreadReply, toast])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

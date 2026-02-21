@@ -65,6 +65,55 @@ export async function reactionRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/reactions — Add a reaction to a message
   // Rate limit: 30 per minute per user (spec Section 8.6)
   app.post('/', {
+    schema: {
+      summary: 'Add reaction',
+      description: 'Adds an emoji reaction to a message. Requires access to the message.',
+      tags: ['Reactions'],
+      body: {
+        type: 'object',
+        required: ['messageId', 'emoji'],
+        properties: {
+          messageId: { type: 'string', format: 'uuid', description: 'Message to react to' },
+          emoji: { type: 'string', minLength: 1, maxLength: 50, description: 'Emoji character or shortcode' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            messageId: { type: 'string', format: 'uuid' },
+            emoji: { type: 'string' },
+            userId: { type: 'string', format: 'uuid' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string' },
+                message: { type: 'string' },
+              },
+            },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string' },
+                message: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, validateBody(addReactionSchema)],
     config: {
       rateLimit: {
@@ -83,6 +132,38 @@ export async function reactionRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/reactions/:reactionId — Remove a reaction
   app.delete('/:reactionId', {
+    schema: {
+      summary: 'Remove reaction',
+      description: 'Removes a reaction. Only the user who added the reaction can remove it.',
+      tags: ['Reactions'],
+      params: {
+        type: 'object',
+        required: ['reactionId'],
+        properties: {
+          reactionId: { type: 'string', format: 'uuid' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+          },
+        },
+        403: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string' },
+                message: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -94,6 +175,32 @@ export async function reactionRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/reactions/message/:messageId — List reactions for a message
   app.get('/message/:messageId', {
+    schema: {
+      summary: 'List message reactions',
+      description: 'Returns all reactions for a specific message.',
+      tags: ['Reactions'],
+      params: {
+        type: 'object',
+        required: ['messageId'],
+        properties: {
+          messageId: { type: 'string', format: 'uuid' },
+        },
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              emoji: { type: 'string' },
+              userId: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { messageId } = request.params as { messageId: string }

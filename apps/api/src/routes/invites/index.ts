@@ -40,6 +40,30 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/invites — Send an invite
   // Only Admin and Super admin can send invites (spec Section 4.1)
   app.post('/', {
+    schema: {
+      summary: 'Send invite',
+      description: 'Sends an invite to a phone number. Admin or Super admin only.',
+      tags: ['Invites'],
+      body: {
+        type: 'object',
+        required: ['phone'],
+        properties: {
+          phone: { type: 'string', description: 'Phone number in E.164 format' },
+        },
+      },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            phone: { type: 'string' },
+            status: { type: 'string' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin'), validateBody(sendInviteSchema)],
     handler: async (request, reply) => {
       const { phone } = request.body as { phone: string }
@@ -55,6 +79,39 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/invites — List all invites
   // Admin and Super admin only
   app.get('/', {
+    schema: {
+      summary: 'List invites',
+      description: 'Returns a paginated list of all invites. Admin or Super admin only.',
+      tags: ['Invites'],
+      querystring: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string' },
+          limit: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  phone: { type: 'string' },
+                  status: { type: 'string' },
+                  sentBy: { type: 'string', format: 'uuid' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+            nextCursor: { type: 'string', nullable: true },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const query = request.query as { cursor?: string; limit?: string }
@@ -69,6 +126,15 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/invites/:id/resend — Resend an invite
   app.post('/:id/resend', {
+    schema: {
+      summary: 'Resend invite',
+      description: 'Resends an existing invite. Admin or Super admin only.',
+      tags: ['Invites'],
+      params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { success: { type: 'boolean' } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.params as { id: string }
@@ -84,6 +150,31 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/invites/verify — Verify an invite token (public endpoint)
   // Rate limit: 10 per hour per IP (spec Section 4.1)
   app.post('/verify', {
+    schema: {
+      summary: 'Verify invite token',
+      description: 'Verifies an invite token and signature. Public endpoint (no auth required).',
+      tags: ['Invites'],
+      security: [],
+      body: {
+        type: 'object',
+        required: ['token', 'signature', 'phone'],
+        properties: {
+          token: { type: 'string', description: 'Invite token' },
+          signature: { type: 'string', description: 'Token signature' },
+          phone: { type: 'string', description: 'Phone number in E.164 format' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            valid: { type: 'boolean' },
+            inviteId: { type: 'string', format: 'uuid' },
+          },
+        },
+        401: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+      },
+    },
     config: {
       rateLimit: {
         max: 10,
@@ -106,6 +197,15 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/invites/:id — Cancel/revoke an invite
   app.delete('/:id', {
+    schema: {
+      summary: 'Cancel invite',
+      description: 'Cancels/revokes an invite. Admin or Super admin only.',
+      tags: ['Invites'],
+      params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
+      response: {
+        200: { type: 'object', properties: { success: { type: 'boolean' } } },
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.params as { id: string }

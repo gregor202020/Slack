@@ -37,6 +37,57 @@ const searchQuerySchema = z.object({
 export async function searchRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/search — Unified search endpoint with type filter
   app.get('/', {
+    schema: {
+      summary: 'Search',
+      description: 'Full-text search across messages, channels, and users. Filterable by type, channel, or DM.',
+      tags: ['Search'],
+      querystring: {
+        type: 'object',
+        required: ['q'],
+        properties: {
+          q: { type: 'string', minLength: 2, maxLength: 100, description: 'Search query (2-100 characters)' },
+          type: { type: 'string', enum: ['all', 'messages', 'channels', 'users'], default: 'all', description: 'Result type filter' },
+          channelId: { type: 'string', format: 'uuid', description: 'Limit message search to a channel' },
+          dmId: { type: 'string', format: 'uuid', description: 'Limit message search to a DM' },
+          cursor: { type: 'string', description: 'Cursor for pagination' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Results per page' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            messages: {
+              type: 'object',
+              properties: {
+                data: { type: 'array', items: { type: 'object' } },
+                nextCursor: { type: 'string', nullable: true },
+              },
+            },
+            channels: {
+              type: 'array',
+              items: { type: 'object' },
+            },
+            users: {
+              type: 'array',
+              items: { type: 'object' },
+            },
+          },
+        },
+        422: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string' },
+                message: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
     preHandler: [authenticate, validateQuery(searchQuerySchema)],
     config: {
       rateLimit: {

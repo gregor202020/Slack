@@ -12,10 +12,24 @@ import {
   auditLogs,
   deletedVault,
   dataExports,
+  users,
+  channels,
+  channelMembers,
+  dmMembers,
+  files,
+  announcements,
 } from '@smoker/db'
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { getConfig } from '../lib/config.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
 import { logAudit } from '../lib/audit.js'
 import { sha256 } from '../lib/crypto.js'
+import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -24,6 +38,30 @@ import { sha256 } from '../lib/crypto.js'
 const DEFAULT_PAGE_LIMIT = 50
 const VAULT_RETENTION_DAYS = 180
 const EXPORT_HARD_LIMIT = 10_000
+const SIGNED_URL_EXPIRY_SECONDS = 3600 // 1 hour
+
+// ---------------------------------------------------------------------------
+// S3 client (lazy singleton)
+// ---------------------------------------------------------------------------
+
+let _s3: S3Client | null = null
+
+function getS3Client(): S3Client {
+  if (_s3) return _s3
+
+  const config = getConfig()
+  _s3 = new S3Client({
+    endpoint: config.s3Endpoint,
+    region: config.s3Region,
+    credentials: {
+      accessKeyId: config.s3AccessKey,
+      secretAccessKey: config.s3SecretKey,
+    },
+    forcePathStyle: true,
+  })
+
+  return _s3
+}
 
 // ===========================================================================
 // 1. Bulk Delete
@@ -377,8 +415,149 @@ export async function exportAuditLogs(
 // ===========================================================================
 
 /**
+ * Generate an export file, upload to S3, and update the export record.
+ * Runs as a background task (fire-and-forget).
+ */
+async function generateExportFile(exportId: string, scope: 'org' | 'user', targetUserId?: string) {
+  try {
+    const exportData: Record<string, unknown> = {
+      exportId,
+      scope,
+      generatedAt: new Date().toISOString(),
+    }
+
+    if (scope === 'org') {
+      const [allUsers, allChannels, allMessages, allAnnouncements, allFiles] = await Promise.all([
+        db.select({
+          id: users.id,
+          fullName: users.fullName,
+          phone: users.phone,
+          orgRole: users.orgRole,
+          status: users.status,
+          createdAt: users.createdAt,
+        }).from(users).limit(EXPORT_HARD_LIMIT),
+        db.select({
+          id: channels.id,
+          name: channels.name,
+          type: channels.type,
+          scope: channels.scope,
+          venueId: channels.venueId,
+          status: channels.status,
+          createdAt: channels.createdAt,
+        }).from(channels).limit(EXPORT_HARD_LIMIT),
+        db.select({
+          id: messages.id,
+          channelId: messages.channelId,
+          dmId: messages.dmId,
+          userId: messages.userId,
+          body: messages.body,
+          createdAt: messages.createdAt,
+        }).from(messages).where(isNull(messages.deletedAt)).limit(EXPORT_HARD_LIMIT),
+        db.select({
+          id: announcements.id,
+          scope: announcements.scope,
+          title: announcements.title,
+          createdAt: announcements.createdAt,
+        }).from(announcements).limit(EXPORT_HARD_LIMIT),
+        db.select({
+          id: files.id,
+          userId: files.userId,
+          originalFilename: files.originalFilename,
+          mimeType: files.mimeType,
+          sizeBytes: files.sizeBytes,
+          createdAt: files.createdAt,
+        }).from(files).limit(EXPORT_HARD_LIMIT),
+      ])
+
+      exportData.users = allUsers
+      exportData.channels = allChannels
+      exportData.messages = allMessages
+      exportData.announcements = allAnnouncements
+      exportData.files = allFiles.map((f) => ({ ...f, sizeBytes: Number(f.sizeBytes) }))
+    } else if (scope === 'user' && targetUserId) {
+      const [userData, userMessages, userDmMemberships, userChannelMemberships, userFiles] = await Promise.all([
+        db.select({
+          id: users.id,
+          fullName: users.fullName,
+          phone: users.phone,
+          orgRole: users.orgRole,
+          status: users.status,
+          createdAt: users.createdAt,
+        }).from(users).where(eq(users.id, targetUserId)).limit(1),
+        db.select({
+          id: messages.id,
+          channelId: messages.channelId,
+          dmId: messages.dmId,
+          body: messages.body,
+          createdAt: messages.createdAt,
+        }).from(messages).where(and(eq(messages.userId, targetUserId), isNull(messages.deletedAt))).limit(EXPORT_HARD_LIMIT),
+        db.select({
+          dmId: dmMembers.dmId,
+          joinedAt: dmMembers.joinedAt,
+        }).from(dmMembers).where(eq(dmMembers.userId, targetUserId)),
+        db.select({
+          channelId: channelMembers.channelId,
+          joinedAt: channelMembers.joinedAt,
+        }).from(channelMembers).where(eq(channelMembers.userId, targetUserId)),
+        db.select({
+          id: files.id,
+          originalFilename: files.originalFilename,
+          mimeType: files.mimeType,
+          sizeBytes: files.sizeBytes,
+          createdAt: files.createdAt,
+        }).from(files).where(eq(files.userId, targetUserId)).limit(EXPORT_HARD_LIMIT),
+      ])
+
+      exportData.user = userData[0] ?? null
+      exportData.messages = userMessages
+      exportData.dmMemberships = userDmMemberships
+      exportData.channelMemberships = userChannelMemberships
+      exportData.files = userFiles.map((f) => ({ ...f, sizeBytes: Number(f.sizeBytes) }))
+    }
+
+    const jsonContent = JSON.stringify(exportData, null, 2)
+    const buffer = Buffer.from(jsonContent, 'utf-8')
+    const s3Key = `exports/${exportId}.json`
+
+    const config = getConfig()
+    const s3 = getS3Client()
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: config.s3Bucket,
+        Key: s3Key,
+        Body: buffer,
+        ContentType: 'application/json',
+        ContentDisposition: `attachment; filename="export-${exportId}.json"`,
+      }),
+    )
+
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7) // 7-day download window
+
+    await db
+      .update(dataExports)
+      .set({
+        status: 'ready',
+        s3Key,
+        completedAt: new Date(),
+        expiresAt,
+      })
+      .where(eq(dataExports.id, exportId))
+
+    logger.info({ exportId, scope, s3Key }, 'Export file generated and uploaded')
+  } catch (err) {
+    logger.error({ err, exportId, scope }, 'Failed to generate export file')
+
+    await db
+      .update(dataExports)
+      .set({ status: 'failed' })
+      .where(eq(dataExports.id, exportId))
+  }
+}
+
+/**
  * Request a full organisation data export.
- * For MVP: creates the record with status='pending'. Actual export is TODO.
  */
 export async function requestOrgExport(
   actorId: string,
@@ -404,6 +583,10 @@ export async function requestOrgExport(
     ipAddress,
     userAgent,
   })
+
+  // Fire-and-forget background export generation
+  generateExportFile(exportRecord!.id, 'org')
+    .catch((err) => logger.error({ err, exportId: exportRecord!.id }, 'Background org export failed'))
 
   return exportRecord
 }
@@ -438,6 +621,10 @@ export async function requestUserExport(
     userAgent,
   })
 
+  // Fire-and-forget background export generation
+  generateExportFile(exportRecord!.id, 'user', targetUserId)
+    .catch((err) => logger.error({ err, exportId: exportRecord!.id }, 'Background user export failed'))
+
   return exportRecord
 }
 
@@ -459,8 +646,7 @@ export async function getExportStatus(exportId: string) {
 }
 
 /**
- * Return the file path for a completed export.
- * TODO: Implement actual file generation and signed download URL.
+ * Return a pre-signed S3 download URL for a completed export.
  */
 export async function downloadExport(exportId: string) {
   const [row] = await db
@@ -480,7 +666,35 @@ export async function downloadExport(exportId: string) {
     )
   }
 
-  return { filePath: row.s3Key }
+  if (!row.s3Key) {
+    throw new ValidationError(
+      'Export file is missing',
+      'EXPORT_FILE_MISSING',
+    )
+  }
+
+  const config = getConfig()
+  const s3 = getS3Client()
+
+  const command = new GetObjectCommand({
+    Bucket: config.s3Bucket,
+    Key: row.s3Key,
+    ResponseContentDisposition: `attachment; filename="export-${exportId}.json"`,
+  })
+
+  const url = await getSignedUrl(s3, command, {
+    expiresIn: SIGNED_URL_EXPIRY_SECONDS,
+  })
+
+  const expiresAt = new Date(Date.now() + SIGNED_URL_EXPIRY_SECONDS * 1000)
+
+  // Record the download timestamp
+  await db
+    .update(dataExports)
+    .set({ downloadedAt: new Date() })
+    .where(eq(dataExports.id, exportId))
+
+  return { url, expiresAt: expiresAt.toISOString() }
 }
 
 /**

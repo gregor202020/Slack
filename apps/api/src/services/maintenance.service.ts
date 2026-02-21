@@ -8,9 +8,11 @@
  */
 
 import { eq, and, desc, sql, count } from 'drizzle-orm'
-import { db, maintenanceRequests, maintenanceComments, users, venues } from '@smoker/db'
+import { db, maintenanceRequests, maintenanceComments, users, venues, channels, messages } from '@smoker/db'
 import { NotFoundError, ForbiddenError, ValidationError } from '../lib/errors.js'
 import { logAudit } from '../lib/audit.js'
+import { emitToChannel } from '../plugins/socket.js'
+import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -273,7 +275,9 @@ export async function changeMaintenanceStatus(
     userAgent,
   })
 
-  // TODO: Auto-post system message to venue channel
+  // Auto-post system message to the venue's default channel
+  autoPostMaintenanceUpdate(existing.venueId, existing.title, existing.status, newStatus, userId)
+    .catch((err) => logger.error({ err, requestId }, 'Failed to auto-post maintenance status update'))
 
   return updated
 }
@@ -409,4 +413,75 @@ export async function listVenueMaintenanceRequests(
   } = {},
 ) {
   return listMaintenanceRequests({ ...options, venueId })
+}
+
+// ---------------------------------------------------------------------------
+// 10. autoPostMaintenanceUpdate (internal helper)
+// ---------------------------------------------------------------------------
+
+/**
+ * Auto-post a system message to the venue's default channel when
+ * a maintenance request status changes.
+ */
+async function autoPostMaintenanceUpdate(
+  venueId: string,
+  title: string,
+  previousStatus: string,
+  newStatus: string,
+  actorId: string,
+) {
+  // Find the venue's default channel (isDefault + venue-scoped)
+  const [venueChannel] = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(
+      and(
+        eq(channels.venueId, venueId),
+        eq(channels.scope, 'venue'),
+        eq(channels.isDefault, true),
+        eq(channels.status, 'active'),
+      ),
+    )
+    .limit(1)
+
+  // Fallback: any active venue-scoped channel
+  const targetChannel = venueChannel
+    ?? (await db
+        .select({ id: channels.id })
+        .from(channels)
+        .where(
+          and(
+            eq(channels.venueId, venueId),
+            eq(channels.scope, 'venue'),
+            eq(channels.status, 'active'),
+          ),
+        )
+        .limit(1)
+        .then((rows) => rows[0]))
+
+  if (!targetChannel) {
+    logger.warn({ venueId }, 'No venue channel found for maintenance auto-post')
+    return
+  }
+
+  const statusLabel: Record<string, string> = {
+    open: 'Open',
+    in_progress: 'In Progress',
+    done: 'Done',
+  }
+
+  const body = `[Maintenance Update] "${title}" status changed from ${statusLabel[previousStatus] ?? previousStatus} to ${statusLabel[newStatus] ?? newStatus}.`
+
+  const [message] = await db
+    .insert(messages)
+    .values({
+      channelId: targetChannel.id,
+      userId: actorId,
+      body,
+    })
+    .returning()
+
+  if (message) {
+    emitToChannel(targetChannel.id, 'message:new', message)
+  }
 }

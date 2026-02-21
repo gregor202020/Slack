@@ -67,12 +67,64 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
   // Super admin only, audit logged
   app.post('/export', {
     preHandler: [authenticate, requireRole('super_admin'), requireReauth],
-    handler: async (_request, reply) => {
-      // TODO: Implement vault export (encrypted output, same as data export)
-      return reply.status(501).send({
-        error: 'NOT_IMPLEMENTED',
-        message: 'Vault export is not yet implemented.',
+    handler: async (request, reply) => {
+      const { id } = request.user!
+      const { ipAddress, userAgent } = extractAuditContext(request)
+      const body = request.body as {
+        startDate?: string
+        endDate?: string
+      } | null
+
+      const result = await searchVault({
+        search: undefined,
+        originalType: undefined,
+        limit: 10_000,
       })
+
+      // Filter by date range if provided
+      let items = result.items
+      if (body?.startDate) {
+        const start = new Date(body.startDate)
+        items = items.filter((item) => item.deletedAt >= start)
+      }
+      if (body?.endDate) {
+        const end = new Date(body.endDate)
+        items = items.filter((item) => item.deletedAt <= end)
+      }
+
+      // Fetch full content for each item
+      const fullItems = await Promise.all(
+        items.map((item) => getVaultItem(item.id)),
+      )
+
+      const exportPayload = {
+        exportedAt: new Date().toISOString(),
+        exportedBy: id,
+        itemCount: fullItems.length,
+        items: fullItems,
+      }
+
+      await logAudit({
+        actorId: id,
+        actorType: 'user',
+        action: 'vault.exported',
+        targetType: 'vault',
+        metadata: {
+          itemCount: fullItems.length,
+          startDate: body?.startDate ?? null,
+          endDate: body?.endDate ?? null,
+        },
+        ipAddress,
+        userAgent,
+      })
+
+      const jsonData = JSON.stringify(exportPayload, null, 2)
+
+      return reply
+        .status(200)
+        .header('Content-Type', 'application/json')
+        .header('Content-Disposition', `attachment; filename="vault-export-${Date.now()}.json"`)
+        .send(jsonData)
     },
   })
 

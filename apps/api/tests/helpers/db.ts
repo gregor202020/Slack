@@ -19,6 +19,7 @@ import {
   messageVersions,
   announcements,
   announcementAcks,
+  announcementReminders,
   otpAttempts,
   auditLogs,
   deletedVault,
@@ -34,6 +35,12 @@ import {
   canvasVersions,
   apiKeys,
   linkPreviews,
+  pinnedMessages,
+  bookmarks,
+  maintenanceRequests,
+  maintenanceComments,
+  dataExports,
+  positions,
 } from '@smoker/db'
 import { randomBytes, createHash } from 'node:crypto'
 
@@ -495,8 +502,15 @@ export async function createTestFile(
  */
 export async function cleanupTestData(): Promise<void> {
   // Order matters: delete children before parents
+  // Data exports
+  await db.delete(dataExports)
+
   // Files and file-related
   await db.delete(files)
+
+  // Maintenance
+  await db.delete(maintenanceComments)
+  await db.delete(maintenanceRequests)
 
   // Shift swaps before shifts
   await db.delete(shiftSwaps)
@@ -507,8 +521,13 @@ export async function cleanupTestData(): Promise<void> {
   await db.delete(canvas)
 
   // Announcements
+  await db.delete(announcementReminders)
   await db.delete(announcementAcks)
   await db.delete(announcements)
+
+  // Bookmarks and pins (depend on messages)
+  await db.delete(bookmarks)
+  await db.delete(pinnedMessages)
 
   // Messages and related
   await db.delete(linkPreviews)
@@ -544,4 +563,7 @@ export async function cleanupTestData(): Promise<void> {
 
   // Users last (everything references them)
   await db.delete(users)
+
+  // Positions after users (users.positionId has onDelete: 'set null')
+  await db.delete(positions)
 }
