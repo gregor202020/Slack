@@ -8,7 +8,8 @@
     "build": "echo 'Mobile builds use EAS Build (eas build). Skipping in turbo.'",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
     "expo": "~52.0.0",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@types/react": "~18.3.0",
     "typescript": "^5.7.0",
-    "@babel/core": "^7.26.0"
+    "@babel/core": "^7.26.0",
+    "vitest": "^4.0.18"
   }
 }
