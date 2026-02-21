@@ -1,4 +1,4 @@
-.PHONY: dev infra infra-down db-setup db-seed build test e2e up down clean nginx nginx-down load-smoke load-test load-stress backup backup-docker restore monitoring monitoring-down
+.PHONY: dev infra infra-down db-setup db-seed build test e2e up down clean nginx nginx-down load-smoke load-test load-stress load-spike backup backup-docker restore monitoring monitoring-down
 
 # Start infrastructure (postgres, redis, minio)
 infra:
@@ -58,6 +58,9 @@ load-test:
 
 load-stress:
 	k6 run load-tests/stress.js
+
+load-spike:
+	k6 run load-tests/spike.js
 
 # Database backup (host pg_dump)
 backup:

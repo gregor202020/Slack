@@ -3,8 +3,6 @@
 #
 # Uses different ports and container names to avoid conflicts with dev.
 
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { VenueCardSkeleton } from '@/components/ui/Skeleton'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
+import { useToastStore } from '@/stores/toast'
 
 interface Venue {
   id: string
@@ -22,14 +23,28 @@ export default function AdminVenuesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
+  const [editVenue, setEditVenue] = useState<Venue | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editAddress, setEditAddress] = useState('')
+  const [confirmArchive, setConfirmArchive] = useState<Venue | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const addToast = useToastStore((s) => s.addToast)
 
-  useEffect(() => {
-    api<{ data: Venue[] }>('/api/venues')
-      .then((data) => setVenues(data.data || []))
-      .finally(() => setIsLoading(false))
-  }, [])
+  const fetchVenues = async () => {
+    try {
+      const data = await api<{ data: Venue[] }>('/api/venues')
+      setVenues(data.data || [])
+    } catch {
+      addToast('error', 'Failed to load venues')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchVenues() }, [])
 
   const handleCreate = async () => {
+    setActionLoading(true)
     try {
       await api('/api/venues', {
         method: 'POST',
@@ -38,10 +53,58 @@ export default function AdminVenuesPage() {
       setCreateOpen(false)
       setName('')
       setAddress('')
-      const data = await api<{ data: Venue[] }>('/api/venues')
-      setVenues(data.data || [])
+      addToast('success', 'Venue created')
+      await fetchVenues()
     } catch {
-      // handle error
+      addToast('error', 'Failed to create venue')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleEdit = async () => {
+    if (!editVenue) return
+    setActionLoading(true)
+    try {
+      await api(`/api/venues/${editVenue.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: editName, address: editAddress }),
+      })
+      addToast('success', 'Venue updated')
+      setEditVenue(null)
+      await fetchVenues()
+    } catch {
+      addToast('error', 'Failed to update venue')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    if (!confirmArchive) return
+    setActionLoading(true)
+    try {
+      await api(`/api/venues/${confirmArchive.id}/archive`, { method: 'POST' })
+      addToast('success', 'Venue archived')
+      setConfirmArchive(null)
+      await fetchVenues()
+    } catch {
+      addToast('error', 'Failed to archive venue')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleUnarchive = async (venue: Venue) => {
+    setActionLoading(true)
+    try {
+      await api(`/api/venues/${venue.id}/unarchive`, { method: 'POST' })
+      addToast('success', 'Venue restored')
+      await fetchVenues()
+    } catch {
+      addToast('error', 'Failed to restore venue')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -80,8 +143,36 @@ export default function AdminVenuesPage() {
               </Badge>
             </div>
             <p className="text-sm text-smoke-400">{v.address}</p>
-            <div className="flex justify-end pt-2">
-              <Button variant="ghost" size="sm">Manage</Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditVenue(v)
+                  setEditName(v.name)
+                  setEditAddress(v.address)
+                }}
+              >
+                Edit
+              </Button>
+              {v.status === 'active' ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmArchive(v)}
+                >
+                  Archive
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleUnarchive(v)}
+                  isLoading={actionLoading}
+                >
+                  Restore
+                </Button>
+              )}
             </div>
           </div>
         ))}
@@ -107,7 +198,56 @@ export default function AdminVenuesPage() {
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreate}>Create</Button>
+            <Button onClick={handleCreate} isLoading={actionLoading}>Create</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!editVenue}
+        onClose={() => setEditVenue(null)}
+        title="Edit venue"
+      >
+        <div className="space-y-4">
+          <Input
+            id="editVenueName"
+            label="Name"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Venue name"
+          />
+          <Input
+            id="editVenueAddress"
+            label="Address"
+            value={editAddress}
+            onChange={(e) => setEditAddress(e.target.value)}
+            placeholder="123 Main St, City, State"
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setEditVenue(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEdit} isLoading={actionLoading}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!confirmArchive}
+        onClose={() => setConfirmArchive(null)}
+        title="Archive venue"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-smoke-300">
+            Are you sure you want to archive <span className="font-medium text-smoke-100">{confirmArchive?.name}</span>? It can be restored later.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmArchive(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleArchive} isLoading={actionLoading}>
+              Archive
+            </Button>
           </div>
         </div>
       </Modal>

@@ -19,10 +19,11 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuthStore } from '../../src/stores/auth'
+import { OTP_LENGTH } from '@smoker/shared'
 import { colors } from '../../src/theme/colors'
 import { fontSize, fontWeight } from '../../src/theme/typography'
 
-const CODE_LENGTH = 6
+const CODE_LENGTH = OTP_LENGTH
 const RESEND_INTERVAL = 60 // seconds
 
 export default function VerifyScreen() {

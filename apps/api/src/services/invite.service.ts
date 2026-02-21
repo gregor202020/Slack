@@ -99,7 +99,7 @@ export async function sendInvite(
     const client = twilio(config.twilioAccountSid, config.twilioAuthToken)
     await client.messages.create({
       body: `You've been invited to The Smoker! Accept your invite here: ${inviteLink}`,
-      from: config.twilioPhoneNumber,
+      from: config.twilioFromNumber,
       to: phone,
     })
   }

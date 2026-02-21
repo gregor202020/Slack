@@ -3,7 +3,7 @@
  *
  * - Stores access + refresh tokens in expo-secure-store
  * - Automatically refreshes on 401 responses
- * - Configurable API_URL (defaults to localhost:3001)
+ * - Configurable API_URL (defaults to localhost:4000)
  */
 
 import * as SecureStore from 'expo-secure-store'
@@ -14,7 +14,7 @@ const REFRESH_TOKEN_KEY = 'smoker_refresh_token'
 
 const API_URL: string =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-  'http://localhost:3001/api'
+  'http://localhost:4000/api'
 
 // ---- Token helpers ----
 

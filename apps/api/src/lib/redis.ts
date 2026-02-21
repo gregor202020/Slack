@@ -4,8 +4,9 @@
  * Provides a shared Redis connection for:
  * - OTP storage with TTL
  * - Rate limiting (distributed)
- * - Session caching (future)
- * - Socket.io adapter (future)
+ * - Session / notification-preferences caching
+ * - Socket.io Redis adapter
+ * - Presence tracking (online users)
  */
 
 import Redis from 'ioredis'

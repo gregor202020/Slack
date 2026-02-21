@@ -132,7 +132,7 @@ export async function requestOtp(
     const client = twilio(config.twilioAccountSid, config.twilioAuthToken)
     await client.messages.create({
       body: `Your verification code for The Smoker is: ${otp}`,
-      from: config.twilioPhoneNumber,
+      from: config.twilioFromNumber,
       to: phone,
     })
   }

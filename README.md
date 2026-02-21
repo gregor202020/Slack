@@ -112,6 +112,7 @@ make dev
 | `make load-smoke` | Run k6 smoke test |
 | `make load-test` | Run k6 load test |
 | `make load-stress` | Run k6 stress test |
+| `make load-spike` | Run k6 spike test |
 | `make backup` | Run database backup via host pg_dump |
 | `make backup-docker` | Run database backup via Docker container |
 | `make restore FILE=<path>` | Restore database from backup file |
@@ -328,6 +329,9 @@ make load-test
 
 # Stress test (find breaking points)
 make load-stress
+
+# Spike test (sudden traffic spikes with recovery periods)
+make load-spike
 ```
 
 ## Architecture Overview

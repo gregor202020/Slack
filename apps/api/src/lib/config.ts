@@ -88,7 +88,7 @@ export interface AppConfig {
   // Twilio
   twilioAccountSid: string
   twilioAuthToken: string
-  twilioPhoneNumber: string
+  twilioFromNumber: string
 
   // S3
   s3Endpoint: string
@@ -100,9 +100,6 @@ export interface AppConfig {
 
   // Encryption
   encryptionKey: string
-
-  // Firebase
-  firebaseServiceAccountPath: string
 
   // CORS
   mobileOrigins: string
@@ -135,32 +132,33 @@ export function loadConfig(): AppConfig {
     jwtAccessExpiry: parseTimeToSeconds('JWT_ACCESS_EXPIRY', 900),
     jwtRefreshExpiry: parseTimeToSeconds('JWT_REFRESH_EXPIRY', 604800),
 
-    inviteHmacSecret: optional('INVITE_HMAC_SECRET', ''),
+    inviteHmacSecret: nodeEnv === 'production' ? required('INVITE_HMAC_SECRET') : optional('INVITE_HMAC_SECRET', 'dev-invite-hmac-secret'),
 
     otpLength: optionalInt('OTP_LENGTH', 6),
     otpExpiryMinutes: optionalInt('OTP_EXPIRY_MINUTES', 5),
 
     twilioAccountSid: optional('TWILIO_ACCOUNT_SID', ''),
     twilioAuthToken: optional('TWILIO_AUTH_TOKEN', ''),
-    twilioPhoneNumber: optional('TWILIO_PHONE_NUMBER', ''),
+    twilioFromNumber: optional('TWILIO_FROM_NUMBER', ''),
 
     s3Endpoint: optional('S3_ENDPOINT', 'https://syd1.digitaloceanspaces.com'),
     s3Region: optional('S3_REGION', 'syd1'),
     s3Bucket: optional('S3_BUCKET', 'the-smoker-files'),
     s3AccessKey: optional('S3_ACCESS_KEY', ''),
     s3SecretKey: optional('S3_SECRET_KEY', ''),
-    s3FileDomain: optional('S3_FILE_DOMAIN', 'https://files.yourdomain.com'),
+    s3FileDomain: optional('S3_FILE_DOMAIN', ''),
 
     encryptionKey: required('PII_ENCRYPTION_KEY'),
-
-    firebaseServiceAccountPath: optional(
-      'FIREBASE_SERVICE_ACCOUNT_PATH',
-      './firebase-service-account.json',
-    ),
 
     mobileOrigins: optional('MOBILE_ORIGINS', ''),
 
     metricsToken: optional('METRICS_TOKEN', ''),
+  }
+
+  // Warn if S3 is configured but file domain is missing
+  if (_config.s3AccessKey && !_config.s3FileDomain) {
+    // eslint-disable-next-line no-console
+    console.warn('[config] S3 credentials are set but S3_FILE_DOMAIN is empty — file URLs will not resolve correctly')
   }
 
   return _config

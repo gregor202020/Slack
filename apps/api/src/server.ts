@@ -29,6 +29,11 @@ async function main(): Promise<void> {
   // (must be after buildApp so the structured logger is available)
   initFirebase()
 
+  // Warn if Twilio credentials are missing
+  if (!config.twilioAccountSid || !config.twilioAuthToken || !config.twilioFromNumber) {
+    app.log.warn('Twilio credentials not configured — SMS features (OTP, invites) will fail in production')
+  }
+
   // Start listening
   await app.listen({ port: config.port, host: config.host })
 

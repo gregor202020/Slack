@@ -31,6 +31,11 @@ build/
 # Test
 coverage/
 
+# Credential files
+*.pem
+*.key
+firebase-service-account.json
+
 # Database backups
 backups/*.dump
 backups/*.dump.gz
