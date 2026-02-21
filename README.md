@@ -37,6 +37,8 @@ the-smoker/
 ├── scripts/          # Database backup/restore shell scripts
 ├── docker-compose.yml        # Production full-stack deployment
 ├── docker-compose.dev.yml    # Development infrastructure (postgres, redis, minio)
+├── docker-compose.test.yml   # Test infrastructure (isolated postgres, redis, minio)
+├── .env.test                 # Test environment variables (safe to commit)
 ├── Makefile                  # Convenience targets for common operations
 └── turbo.json                # Turborepo pipeline configuration
 ```
@@ -290,33 +292,81 @@ Pre-configured dashboards are auto-provisioned:
 
 ## Testing
 
-### Unit Tests
+Tests run against an **isolated test environment** — separate Postgres (port 5433), Redis (port 6380), and MinIO (port 9002) containers that won't conflict with your dev services.
+
+### Quick Start
 
 ```bash
-# Run all unit tests
-make test
+# Run everything: spin up infra → migrate → API tests → mobile tests → Playwright E2E → tear down
+make test-all
+```
 
-# Run with watch mode (API only)
+### Test Infrastructure
+
+```bash
+# Start test services (Postgres 5433, Redis 6380, MinIO 9002)
+make test-infra
+
+# Run migrations on test database
+make test-db-setup
+
+# Seed test database with fixture data (users, channels, messages, etc.)
+make test-db-seed
+
+# Inspect test database with Drizzle Studio
+make test-db-studio
+
+# Stop test services
+make test-infra-down
+
+# Full setup (infra + migrations) in one command
+make test-setup
+
+# Full teardown (stop + remove volumes)
+make test-teardown
+```
+
+### API Tests (Vitest — 21 E2E + 31 unit tests)
+
+```bash
+# Full suite against real Postgres/Redis (starts infra if needed)
+make test-api
+
+# Quick: just run vitest (assumes infra is already running)
+npm run test:api
+
+# Watch mode
 cd apps/api && npm run test:watch
 
-# Run with coverage
+# With coverage report
 cd apps/api && npm run test:coverage
 ```
 
-### End-to-End Tests
+### Mobile Tests (Vitest — all mocked, no infra needed)
 
 ```bash
-# Run Playwright E2E tests (Chromium)
-make e2e
-
-# Run with UI mode
-cd apps/web && npm run e2e:ui
-
-# Run headed (visible browser)
-cd apps/web && npm run e2e:headed
+make test-mobile
+# or
+npm run test:mobile
 ```
 
-### Load Tests
+### Playwright E2E Tests (8 specs, Chromium)
+
+```bash
+# Full suite (starts infra + seeds + runs Playwright)
+make test-e2e
+
+# Quick: just run Playwright (assumes infra + API/web running)
+npm run test:e2e
+
+# With visible browser
+cd apps/web && npx playwright test --headed
+
+# UI mode
+cd apps/web && npx playwright test --ui
+```
+
+### Load Tests (k6)
 
 Requires [k6](https://k6.io/) to be installed.
 
@@ -324,15 +374,31 @@ Requires [k6](https://k6.io/) to be installed.
 # Quick smoke test (minimal load, verify endpoints work)
 make load-smoke
 
-# Standard load test
+# Standard load test (50 VUs, 5 min)
 make load-test
 
-# Stress test (find breaking points)
+# Stress test (ramp to 200 VUs)
 make load-stress
 
-# Spike test (sudden traffic spikes with recovery periods)
+# Spike test (sudden traffic bursts)
 make load-spike
+
+# WebSocket load test (50 concurrent connections)
+k6 run load-tests/websocket.js
+
+# Load test against full dockerized stack
+make test-load
 ```
+
+### Test Environment Config
+
+All test environment variables live in **`.env.test`** at the project root. The test setup (`apps/api/tests/setup.ts`) loads this file automatically. CI provides its own values via GitHub Actions environment variables.
+
+| Service  | Dev Port | Test Port | Container Name        |
+|----------|----------|-----------|----------------------|
+| Postgres | 5432     | 5433      | smoker-test-postgres |
+| Redis    | 6379     | 6380      | smoker-test-redis    |
+| MinIO    | 9000     | 9002      | smoker-test-minio    |
 
 ## Architecture Overview
 

@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Test infrastructure ports (matching docker-compose.test.yml and .env.test)
+const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://smoker:smoker_dev@localhost:5433/smoker_test'
+const TEST_REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380/1'
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -20,7 +24,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev -w @smoker/api',
+      command: `DATABASE_URL=${TEST_DB_URL} REDIS_URL=${TEST_REDIS_URL} npm run dev -w @smoker/api`,
       port: 4000,
       reuseExistingServer: !process.env.CI,
       cwd: '../..',

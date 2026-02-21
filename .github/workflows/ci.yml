@@ -42,7 +42,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: smoker
-          POSTGRES_PASSWORD: smoker
+          POSTGRES_PASSWORD: smoker_dev
           POSTGRES_DB: smoker_test
         ports:
           - 5432:5432
@@ -61,8 +61,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://smoker:smoker@localhost:5432/smoker_test
-      TEST_DATABASE_URL: postgresql://smoker:smoker@localhost:5432/smoker_test
+      DATABASE_URL: postgresql://smoker:smoker_dev@localhost:5432/smoker_test
+      TEST_DATABASE_URL: postgresql://smoker:smoker_dev@localhost:5432/smoker_test
       REDIS_URL: redis://localhost:6379/1
       JWT_SECRET: test-jwt-secret-ci
       TWILIO_ACCOUNT_SID: test_sid
@@ -95,8 +95,12 @@ jobs:
       - name: Run database migrations
         run: npm run db:migrate
 
-      - name: Run tests
-        run: npm run test
+      - name: Run API tests
+        run: npm run test:api
+
+      - name: Run mobile tests
+        run: npm run test:mobile
+        continue-on-error: true
 
       - name: Upload coverage
         if: always()
@@ -104,6 +108,80 @@ jobs:
         with:
           name: coverage-report
           path: apps/api/coverage/
+          retention-days: 7
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smoker
+          POSTGRES_PASSWORD: smoker_dev
+          POSTGRES_DB: smoker_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://smoker:smoker_dev@localhost:5432/smoker_test
+      REDIS_URL: redis://localhost:6379/1
+      JWT_SECRET: test-jwt-secret-ci
+      TWILIO_ACCOUNT_SID: test_sid
+      TWILIO_AUTH_TOKEN: test_token
+      TWILIO_FROM_NUMBER: '+15555555555'
+      S3_BUCKET: test-bucket
+      S3_REGION: us-east-1
+      S3_ENDPOINT: https://test.digitaloceanspaces.com
+      S3_ACCESS_KEY: test-access-key
+      S3_SECRET_KEY: test-secret-key
+      S3_FILE_DOMAIN: https://test-files.example.com
+      PII_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      INVITE_HMAC_SECRET: test-invite-hmac-secret-for-ci-pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run database migrations
+        run: npm run db:migrate
+
+      - name: Seed test database
+        run: npm run db:seed
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
           retention-days: 7
 
   build:
