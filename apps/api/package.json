@@ -39,7 +39,7 @@
     "socket.io": "^4.8.0",
     "twilio": "^5.0.0",
     "yjs": "^13.6.29",
-    "zod": "^3.24.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.0",
