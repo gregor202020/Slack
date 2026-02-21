@@ -168,9 +168,10 @@ describe('Search API', () => {
 
       expect(response.statusCode).toBe(200)
       const body = response.json()
-      expect(Array.isArray(body)).toBe(true)
-      expect(body.length).toBeGreaterThanOrEqual(1)
-      expect(body[0].name).toContain('astrophysics')
+      expect(body).toHaveProperty('channels')
+      expect(Array.isArray(body.channels)).toBe(true)
+      expect(body.channels.length).toBeGreaterThanOrEqual(1)
+      expect(body.channels[0].name).toContain('astrophysics')
     })
 
     it('should not return private channels the user is not a member of', async () => {
@@ -188,7 +189,7 @@ describe('Search API', () => {
 
       expect(response.statusCode).toBe(200)
       const body = response.json()
-      const match = body.find((ch: { name: string }) => ch.name.includes('xenomorphology'))
+      const match = body.channels.find((ch: { name: string }) => ch.name.includes('xenomorphology'))
       expect(match).toBeUndefined()
     })
   })
@@ -217,9 +218,10 @@ describe('Search API', () => {
 
       expect(response.statusCode).toBe(200)
       const body = response.json()
-      expect(Array.isArray(body)).toBe(true)
-      expect(body.length).toBeGreaterThanOrEqual(1)
-      expect(body[0].fullName).toContain('Bartholomew')
+      expect(body).toHaveProperty('users')
+      expect(Array.isArray(body.users)).toBe(true)
+      expect(body.users.length).toBeGreaterThanOrEqual(1)
+      expect(body.users[0].fullName).toContain('Bartholomew')
     })
   })
 
@@ -232,7 +234,7 @@ describe('Search API', () => {
       await cleanupTestData()
     })
 
-    it('should return 422 for too-short query (1 character)', async () => {
+    it('should return 400 for too-short query (1 character)', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)
@@ -246,7 +248,7 @@ describe('Search API', () => {
       expect(response.statusCode).toBe(422)
     })
 
-    it('should return 422 for missing q parameter', async () => {
+    it('should return 400 for missing q parameter', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)

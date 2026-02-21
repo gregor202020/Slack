@@ -33,8 +33,10 @@ export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            onboardingComplete: { type: 'boolean' },
-            requiredSteps: { type: 'array', items: { type: 'string' } },
+            completed: { type: 'boolean' },
+            profileCompletedAt: { type: 'string', format: 'date-time', nullable: true },
+            missingFields: { type: 'array', items: { type: 'string' } },
+            hasVenue: { type: 'boolean' },
           },
         },
       },
@@ -72,7 +74,6 @@ export async function onboardingRoutes(app: FastifyInstance): Promise<void> {
             onboardingComplete: { type: 'boolean' },
           },
         },
-        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     preHandler: [authenticate, validateBody(completeOnboardingWithVenueSchema)],

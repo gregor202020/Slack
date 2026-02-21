@@ -52,19 +52,6 @@ const announcementIdParam = {
   },
 }
 
-const errorResponse = {
-  type: 'object' as const,
-  properties: {
-    error: {
-      type: 'object' as const,
-      properties: {
-        code: { type: 'string' as const },
-        message: { type: 'string' as const },
-      },
-    },
-  },
-}
-
 const successResponse = {
   type: 'object' as const,
   properties: {
@@ -196,7 +183,6 @@ export async function announcementRoutes(app: FastifyInstance): Promise<void> {
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        422: errorResponse,
       },
     },
     preHandler: [
@@ -233,7 +219,6 @@ export async function announcementRoutes(app: FastifyInstance): Promise<void> {
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -269,7 +254,6 @@ export async function announcementRoutes(app: FastifyInstance): Promise<void> {
             updatedAt: { type: 'string', format: 'date-time' },
           },
         },
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, validateBody(updateAnnouncementSchema)],
@@ -299,7 +283,6 @@ export async function announcementRoutes(app: FastifyInstance): Promise<void> {
       params: announcementIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -384,7 +367,6 @@ export async function announcementRoutes(app: FastifyInstance): Promise<void> {
       params: announcementIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],

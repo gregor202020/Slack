@@ -102,7 +102,7 @@ export async function createApiKey(
     id: created!.id,
     name: created!.name,
     key: rawKey,
-    keyPrefix,
+    prefix: keyPrefix,
     scopes: created!.scopes,
   }
 }
@@ -263,7 +263,7 @@ export async function rotateApiKey(
     userAgent,
   })
 
-  return { key: rawKey }
+  return { key: rawKey, prefix: keyPrefix }
 }
 
 // ---------------------------------------------------------------------------

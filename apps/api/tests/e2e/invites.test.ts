@@ -12,8 +12,22 @@
  *   DELETE /api/invites/:id          — cancel invite
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
+
+// Mock Twilio so sendInvite does not call real SMS APIs in test env
+// (NODE_ENV=test means isDevelopment is false, so twilio would be imported)
+vi.mock('twilio', () => {
+  const mockClient = {
+    messages: {
+      create: vi.fn().mockResolvedValue({ sid: 'SM_test_sid' }),
+    },
+  }
+  return {
+    default: vi.fn(() => mockClient),
+  }
+})
+
 import { buildTestApp } from '../helpers/app'
 import { generateTestToken } from '../helpers/auth'
 import {

@@ -61,7 +61,6 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin'), validateBody(sendInviteSchema)],
@@ -72,7 +71,12 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await sendInvite(phone, user.id, ipAddress, userAgent)
 
-      return reply.status(201).send(result)
+      return reply.status(201).send({
+        id: result.inviteId,
+        phone,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      })
     },
   })
 
@@ -120,7 +124,10 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await listInvites(cursor, limit)
 
-      return reply.status(200).send(result)
+      return reply.status(200).send({
+        data: result.items,
+        nextCursor: result.nextCursor,
+      })
     },
   })
 
@@ -141,9 +148,9 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
       const user = request.user!
       const { ipAddress, userAgent } = extractAuditContext(request)
 
-      const result = await resendInvite(id, user.id, ipAddress, userAgent)
+      await resendInvite(id, user.id, ipAddress, userAgent)
 
-      return reply.status(200).send(result)
+      return reply.status(200).send({ success: true })
     },
   })
 
@@ -172,7 +179,6 @@ export async function inviteRoutes(app: FastifyInstance): Promise<void> {
             inviteId: { type: 'string', format: 'uuid' },
           },
         },
-        401: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     config: {

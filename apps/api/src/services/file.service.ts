@@ -65,6 +65,11 @@ function getS3Client(): S3Client {
   return _s3
 }
 
+/** Reset the S3 client singleton (for testing only). */
+export function __resetS3Client(): void {
+  _s3 = null
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

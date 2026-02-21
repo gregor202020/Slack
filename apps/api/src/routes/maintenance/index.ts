@@ -61,7 +61,23 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            data: { type: 'array', items: { type: 'object' } },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  venueId: { type: 'string', format: 'uuid' },
+                  title: { type: 'string' },
+                  description: { type: 'string' },
+                  priority: { type: 'string' },
+                  status: { type: 'string' },
+                  reportedBy: { type: 'string', format: 'uuid' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
             nextCursor: { type: 'string', nullable: true },
           },
         },
@@ -83,7 +99,10 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         cursor: query.cursor,
         limit: query.limit ? Number(query.limit) : undefined,
       })
-      return reply.status(200).send(result)
+      return reply.status(200).send({
+        data: result.requests,
+        nextCursor: result.nextCursor,
+      })
     },
   })
 
@@ -105,7 +124,20 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         },
       },
       response: {
-        201: { type: 'object' },
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            venueId: { type: 'string', format: 'uuid' },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            priority: { type: 'string' },
+            status: { type: 'string' },
+            reportedBy: { type: 'string', format: 'uuid' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
       },
     },
     preHandler: [authenticate, validateBody(createMaintenanceSchema)],
@@ -131,8 +163,20 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
       tags: ['Maintenance'],
       params: { type: 'object', required: ['requestId'], properties: { requestId: { type: 'string', format: 'uuid' } } },
       response: {
-        200: { type: 'object' },
-        404: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            venueId: { type: 'string', format: 'uuid' },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            priority: { type: 'string' },
+            status: { type: 'string' },
+            reportedBy: { type: 'string', format: 'uuid' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
       },
     },
     preHandler: [authenticate],
@@ -159,7 +203,20 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         },
       },
       response: {
-        200: { type: 'object' },
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            venueId: { type: 'string', format: 'uuid' },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            priority: { type: 'string' },
+            status: { type: 'string' },
+            reportedBy: { type: 'string', format: 'uuid' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
       },
     },
     preHandler: [authenticate, validateBody(updateMaintenanceSchema)],
@@ -194,7 +251,20 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         },
       },
       response: {
-        200: { type: 'object' },
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            venueId: { type: 'string', format: 'uuid' },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            priority: { type: 'string' },
+            status: { type: 'string' },
+            reportedBy: { type: 'string', format: 'uuid' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
       },
     },
     preHandler: [authenticate, validateBody(changeStatusSchema)],
@@ -219,7 +289,25 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
       params: { type: 'object', required: ['requestId'], properties: { requestId: { type: 'string', format: 'uuid' } } },
       querystring: { type: 'object', properties: { cursor: { type: 'string' }, limit: { type: 'string' } } },
       response: {
-        200: { type: 'object', properties: { data: { type: 'array', items: { type: 'object' } }, nextCursor: { type: 'string', nullable: true } } },
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  requestId: { type: 'string', format: 'uuid' },
+                  userId: { type: 'string', format: 'uuid' },
+                  body: { type: 'string' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+            nextCursor: { type: 'string', nullable: true },
+          },
+        },
       },
     },
     preHandler: [authenticate],
@@ -231,7 +319,10 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         query.cursor,
         query.limit ? Number(query.limit) : undefined,
       )
-      return reply.status(200).send(result)
+      return reply.status(200).send({
+        data: result.comments,
+        nextCursor: result.nextCursor,
+      })
     },
   })
 
@@ -243,7 +334,18 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
       tags: ['Maintenance'],
       params: { type: 'object', required: ['requestId'], properties: { requestId: { type: 'string', format: 'uuid' } } },
       body: { type: 'object', required: ['body'], properties: { body: { type: 'string' } } },
-      response: { 201: { type: 'object' } },
+      response: {
+        201: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            body: { type: 'string' },
+            userId: { type: 'string', format: 'uuid' },
+            requestId: { type: 'string', format: 'uuid' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
     },
     preHandler: [authenticate, validateBody(createMaintenanceCommentSchema)],
     handler: async (request, reply) => {
@@ -283,7 +385,29 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
       params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } },
       querystring: { type: 'object', properties: { status: { type: 'string' }, priority: { type: 'string' }, cursor: { type: 'string' }, limit: { type: 'string' } } },
       response: {
-        200: { type: 'object', properties: { data: { type: 'array', items: { type: 'object' } }, nextCursor: { type: 'string', nullable: true } } },
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  venueId: { type: 'string', format: 'uuid' },
+                  title: { type: 'string' },
+                  description: { type: 'string' },
+                  priority: { type: 'string' },
+                  status: { type: 'string' },
+                  reportedBy: { type: 'string', format: 'uuid' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+            nextCursor: { type: 'string', nullable: true },
+          },
+        },
       },
     },
     preHandler: [authenticate],
@@ -301,7 +425,10 @@ export async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
         cursor: query.cursor,
         limit: query.limit ? Number(query.limit) : undefined,
       })
-      return reply.status(200).send(result)
+      return reply.status(200).send({
+        data: result.requests,
+        nextCursor: result.nextCursor,
+      })
     },
   })
 }

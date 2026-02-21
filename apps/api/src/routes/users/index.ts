@@ -48,19 +48,6 @@ const changeRoleSchema = z.object({
 // Shared schema fragments
 // ---------------------------------------------------------------------------
 
-const errorResponse = {
-  type: 'object' as const,
-  properties: {
-    error: {
-      type: 'object' as const,
-      properties: {
-        code: { type: 'string' as const },
-        message: { type: 'string' as const },
-      },
-    },
-  },
-}
-
 const successResponse = {
   type: 'object' as const,
   properties: {
@@ -119,7 +106,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             nextCursor: { type: 'string', nullable: true },
           },
         },
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -168,7 +154,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        401: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -199,7 +184,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             avatarUrl: { type: 'string', nullable: true },
           },
         },
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -240,7 +224,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             updatedAt: { type: 'string', format: 'date-time' },
           },
         },
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, validateBody(updateProfileSchema)],
@@ -419,7 +402,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             timezone: { type: 'string' },
           },
         },
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -454,7 +436,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             orgRole: { type: 'string' },
           },
         },
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin'), validateBody(changeRoleSchema)],
@@ -479,7 +460,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       params: userIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -503,7 +483,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       params: userIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -527,7 +506,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       params: userIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -552,7 +530,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       params: userIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('super_admin')],
@@ -576,8 +553,12 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       tags: ['Users'],
       params: userIdParam,
       response: {
-        200: successResponse,
-        403: errorResponse,
+        200: {
+          type: 'object' as const,
+          properties: {
+            revokedCount: { type: 'integer' as const, description: 'Number of sessions revoked' },
+          },
+        },
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -619,7 +600,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
             },
           },
         },
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -642,7 +622,6 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       params: userIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],

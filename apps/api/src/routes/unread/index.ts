@@ -40,26 +40,14 @@ export async function unreadRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             channels: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  channelId: { type: 'string', format: 'uuid' },
-                  unreadCount: { type: 'integer' },
-                  mentionCount: { type: 'integer' },
-                },
-              },
+              type: 'object',
+              additionalProperties: { type: 'integer' },
             },
             dms: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  dmId: { type: 'string', format: 'uuid' },
-                  unreadCount: { type: 'integer' },
-                },
-              },
+              type: 'object',
+              additionalProperties: { type: 'integer' },
             },
+            total: { type: 'integer' },
           },
         },
       },
@@ -87,7 +75,6 @@ export async function unreadRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: { type: 'object', properties: { success: { type: 'boolean' } } },
-        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     preHandler: [authenticate, validateBody(markReadSchema)],

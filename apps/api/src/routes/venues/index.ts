@@ -82,7 +82,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/venues/:venueId — Get venue details
   app.get('/:venueId', {
-    schema: { summary: 'Get venue details', description: 'Returns full details for a venue.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'object' }, 404: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } } } },
+    schema: { summary: 'Get venue details', description: 'Returns full details for a venue.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, response: { 200: { type: 'object', additionalProperties: true } } },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { id, orgRole } = request.user!
@@ -141,7 +141,7 @@ export async function venueRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/venues/:venueId/members — List venue members
   app.get('/:venueId/members', {
-    schema: { summary: 'List venue members', description: 'Returns paginated venue members.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, querystring: { type: 'object', properties: { cursor: { type: 'string' }, limit: { type: 'integer' } } }, response: { 200: { type: 'object', properties: { data: { type: 'array', items: { type: 'object' } }, nextCursor: { type: 'string', nullable: true } } }, 422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } } } },
+    schema: { summary: 'List venue members', description: 'Returns paginated venue members.', tags: ['Venues'], params: { type: 'object', required: ['venueId'], properties: { venueId: { type: 'string', format: 'uuid' } } }, querystring: { type: 'object', properties: { cursor: { type: 'string' }, limit: { type: 'integer' } } }, response: { 200: { type: 'object', properties: { data: { type: 'array', items: { type: 'object' } }, nextCursor: { type: 'string', nullable: true } } } } },
     preHandler: [authenticate],
     handler: async (request, reply) => {
       const { venueId } = request.params as { venueId: string }

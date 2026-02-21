@@ -40,19 +40,6 @@ const paginationQuerySchema = z.object({
 // Shared schema fragments
 // ---------------------------------------------------------------------------
 
-const errorResponse = {
-  type: 'object' as const,
-  properties: {
-    error: {
-      type: 'object' as const,
-      properties: {
-        code: { type: 'string' as const },
-        message: { type: 'string' as const },
-      },
-    },
-  },
-}
-
 const successResponse = {
   type: 'object' as const,
   properties: {
@@ -92,15 +79,32 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            data: {
+            dms: {
               type: 'array',
               items: {
                 type: 'object',
                 properties: {
                   id: { type: 'string', format: 'uuid' },
                   type: { type: 'string', enum: ['direct', 'group'] },
-                  memberCount: { type: 'integer' },
-                  lastMessageAt: { type: 'string', format: 'date-time', nullable: true },
+                  members: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        userId: { type: 'string', format: 'uuid' },
+                        fullName: { type: 'string' },
+                      },
+                    },
+                  },
+                  lastMessage: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      body: { type: 'string' },
+                      createdAt: { type: 'string', format: 'date-time' },
+                      userId: { type: 'string', format: 'uuid' },
+                    },
+                  },
                   createdAt: { type: 'string', format: 'date-time' },
                 },
               },
@@ -145,10 +149,19 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
           properties: {
             id: { type: 'string', format: 'uuid' },
             type: { type: 'string' },
+            members: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  userId: { type: 'string', format: 'uuid' },
+                  fullName: { type: 'string' },
+                },
+              },
+            },
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, validateBody(createDmSchema)],
@@ -184,10 +197,19 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
             id: { type: 'string', format: 'uuid' },
             type: { type: 'string' },
             memberCount: { type: 'integer' },
+            members: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  userId: { type: 'string', format: 'uuid' },
+                  fullName: { type: 'string' },
+                },
+              },
+            },
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, requireDmMembership('dmId')],
@@ -249,7 +271,6 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         201: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireDmMembership('dmId'), validateBody(addDmMembersSchema)],
@@ -279,7 +300,6 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireDmMembership('dmId')],
@@ -322,7 +342,6 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
       params: dmIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -347,15 +366,18 @@ export async function dmRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            data: {
+            messages: {
               type: 'array',
               items: {
                 type: 'object',
                 properties: {
                   id: { type: 'string', format: 'uuid' },
                   body: { type: 'string' },
-                  senderId: { type: 'string', format: 'uuid' },
+                  userId: { type: 'string', format: 'uuid' },
+                  authorName: { type: 'string' },
+                  parentMessageId: { type: 'string', format: 'uuid', nullable: true },
                   createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 },
               },
             },

@@ -227,7 +227,7 @@ describe('Message API', () => {
       expect(response.statusCode).toBe(403)
     })
 
-    it('should return 422 for empty body', async () => {
+    it('should return 400 for empty body', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)
@@ -437,6 +437,7 @@ describe('Message API', () => {
       const token = generateTestToken(user.id, session.id)
 
       const channel = await createTestChannel({ name: 'reaction-test' })
+      await addUserToChannel(channel.id, user.id)
       const message = await createTestMessage({
         channelId: channel.id,
         userId: user.id,
@@ -466,6 +467,7 @@ describe('Message API', () => {
       const token = generateTestToken(user.id, session.id)
 
       const channel = await createTestChannel({ name: 'list-reactions' })
+      await addUserToChannel(channel.id, user.id)
       const message = await createTestMessage({
         channelId: channel.id,
         userId: user.id,
@@ -499,6 +501,7 @@ describe('Message API', () => {
       const token = generateTestToken(user.id, session.id)
 
       const channel = await createTestChannel({ name: 'remove-reaction' })
+      await addUserToChannel(channel.id, user.id)
       const message = await createTestMessage({
         channelId: channel.id,
         userId: user.id,
@@ -535,6 +538,8 @@ describe('Message API', () => {
       const token2 = generateTestToken(user2.id, session2.id)
 
       const channel = await createTestChannel({ name: 'steal-reaction' })
+      await addUserToChannel(channel.id, user1.id)
+      await addUserToChannel(channel.id, user2.id)
       const message = await createTestMessage({
         channelId: channel.id,
         userId: user1.id,

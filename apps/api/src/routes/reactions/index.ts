@@ -88,30 +88,6 @@ export async function reactionRoutes(app: FastifyInstance): Promise<void> {
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        403: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
-        404: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
       },
     },
     preHandler: [authenticate, validateBody(addReactionSchema)],
@@ -148,18 +124,6 @@ export async function reactionRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-          },
-        },
-        403: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
           },
         },
       },

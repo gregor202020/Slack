@@ -40,6 +40,7 @@ import {
 } from '../../../src/services/announcement.service.js'
 import {
   createTestUser,
+  createTestSession,
   createTestVenue,
   createTestChannel,
   createTestAnnouncement,
@@ -347,6 +348,7 @@ describe('Announcement Service', () => {
 
     it('should acknowledge an announcement', async () => {
       const user = await createTestUser()
+      const session = await createTestSession(user.id)
       const ann = await createTestAnnouncement({
         userId: user.id,
         ackRequired: true,
@@ -355,7 +357,7 @@ describe('Announcement Service', () => {
       const result = await acknowledgeAnnouncement(
         ann.id,
         user.id,
-        'session-123',
+        session.id,
         '127.0.0.1',
         'test-agent',
       )
@@ -365,23 +367,26 @@ describe('Announcement Service', () => {
 
     it('should be idempotent (acking twice succeeds)', async () => {
       const user = await createTestUser()
+      const session1 = await createTestSession(user.id)
+      const session2 = await createTestSession(user.id)
       const ann = await createTestAnnouncement({
         userId: user.id,
         ackRequired: true,
       })
 
-      await acknowledgeAnnouncement(ann.id, user.id, 's1', '127.0.0.1', 'test-agent')
-      const result = await acknowledgeAnnouncement(ann.id, user.id, 's2', '127.0.0.1', 'test-agent')
+      await acknowledgeAnnouncement(ann.id, user.id, session1.id, '127.0.0.1', 'test-agent')
+      const result = await acknowledgeAnnouncement(ann.id, user.id, session2.id, '127.0.0.1', 'test-agent')
 
       expect(result.success).toBe(true)
     })
 
     it('should throw for non-existent announcement', async () => {
       const user = await createTestUser()
+      const session = await createTestSession(user.id)
       const fakeId = '00000000-0000-4000-a000-000000000000'
 
       await expect(
-        acknowledgeAnnouncement(fakeId, user.id, 's1', '127.0.0.1', 'test-agent'),
+        acknowledgeAnnouncement(fakeId, user.id, session.id, '127.0.0.1', 'test-agent'),
       ).rejects.toThrow('not found')
     })
   })
@@ -442,12 +447,13 @@ describe('Announcement Service', () => {
 
     it('should not return already-acked announcements', async () => {
       const user = await createTestUser()
+      const session = await createTestSession(user.id)
       const ann = await createTestAnnouncement({
         userId: user.id,
         ackRequired: true,
       })
 
-      await acknowledgeAnnouncement(ann.id, user.id, 's1', '127.0.0.1', 'test-agent')
+      await acknowledgeAnnouncement(ann.id, user.id, session.id, '127.0.0.1', 'test-agent')
 
       const pending = await getPendingAnnouncements(user.id)
       const found = pending.find((a: { id: string }) => a.id === ann.id)

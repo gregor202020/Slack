@@ -18,6 +18,7 @@ import { generateTestToken } from '../helpers/auth'
 import {
   createTestUser,
   createTestSession,
+  createTestPosition,
   cleanupTestData,
 } from '../helpers/db'
 
@@ -55,11 +56,11 @@ describe('Onboarding API', () => {
 
       expect(response.statusCode).toBe(200)
       const body = response.json()
-      expect(body).toHaveProperty('onboardingComplete')
-      expect(typeof body.onboardingComplete).toBe('boolean')
+      expect(body).toHaveProperty('completed')
+      expect(typeof body.completed).toBe('boolean')
     })
 
-    it('should return required steps in the status response', async () => {
+    it('should return missing fields in the status response', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)
@@ -72,8 +73,8 @@ describe('Onboarding API', () => {
 
       expect(response.statusCode).toBe(200)
       const body = response.json()
-      expect(body).toHaveProperty('requiredSteps')
-      expect(Array.isArray(body.requiredSteps)).toBe(true)
+      expect(body).toHaveProperty('missingFields')
+      expect(Array.isArray(body.missingFields)).toBe(true)
     })
 
     it('should return 401 without authentication', async () => {
@@ -95,10 +96,11 @@ describe('Onboarding API', () => {
       await cleanupTestData()
     })
 
-    it('should complete onboarding with required fields', async () => {
+    it('should complete onboarding with all required fields', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)
+      const position = await createTestPosition({ name: 'Server' })
 
       const response = await app.inject({
         method: 'POST',
@@ -106,16 +108,19 @@ describe('Onboarding API', () => {
         headers: { authorization: `Bearer ${token}` },
         payload: {
           fullName: 'John Doe',
+          email: 'john@example.com',
+          address: '123 Main St',
+          positionId: position.id,
+          timezone: 'America/Chicago',
         },
       })
 
       expect(response.statusCode).toBe(200)
       const body = response.json()
       expect(body).toHaveProperty('id')
-      expect(body).toHaveProperty('onboardingComplete')
     })
 
-    it('should complete onboarding with all optional fields', async () => {
+    it('should return 422 for missing required fields', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)
@@ -126,18 +131,14 @@ describe('Onboarding API', () => {
         headers: { authorization: `Bearer ${token}` },
         payload: {
           fullName: 'Jane Smith',
-          email: 'jane@example.com',
-          address: '456 Oak Ave',
-          timezone: 'America/New_York',
         },
       })
 
-      expect(response.statusCode).toBe(200)
-      const body = response.json()
-      expect(body.id).toBe(user.id)
+      // Missing email, address, positionId, timezone — should fail Zod validation
+      expect(response.statusCode).toBe(422)
     })
 
-    it('should return 422 for missing fullName', async () => {
+    it('should return 400 for missing fullName', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)

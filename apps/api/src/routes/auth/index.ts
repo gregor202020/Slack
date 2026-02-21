@@ -40,34 +40,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           description: 'OTP sent successfully',
           properties: {
-            success: { type: 'boolean' },
-            expiresIn: { type: 'number', description: 'OTP expiry time in seconds' },
-          },
-        },
-        422: {
-          type: 'object',
-          description: 'Validation error',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
-        429: {
-          type: 'object',
-          description: 'Rate limit exceeded',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
+            message: { type: 'string', description: 'Uniform response message' },
           },
         },
       },
@@ -124,32 +97,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             },
           },
         },
-        401: {
-          type: 'object',
-          description: 'Invalid or expired OTP',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
-        429: {
-          type: 'object',
-          description: 'Rate limit exceeded',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
       },
     },
     config: {
@@ -197,19 +144,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             accessToken: { type: 'string', description: 'New JWT access token' },
           },
         },
-        401: {
-          type: 'object',
-          description: 'Missing or invalid refresh token',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
       },
     },
     config: {
@@ -247,19 +181,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           description: 'Logged out successfully',
           properties: {
             success: { type: 'boolean' },
-          },
-        },
-        401: {
-          type: 'object',
-          description: 'Not authenticated',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
           },
         },
       },

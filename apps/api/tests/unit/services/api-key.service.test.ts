@@ -78,7 +78,7 @@ describe('API Key Service', () => {
       expect(result.name).toBe('Test Key')
       expect(result.key).toBeDefined()
       expect(result.key.length).toBeGreaterThan(0)
-      expect(result.keyPrefix).toBe(result.key.slice(0, 8))
+      expect(result.prefix).toBe(result.key.slice(0, 8))
     })
 
     it('should create API key with IP allowlist', async () => {

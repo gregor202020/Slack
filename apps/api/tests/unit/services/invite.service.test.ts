@@ -27,6 +27,17 @@ vi.mock('../../../src/plugins/firebase.js', () => ({
   getFirebaseApp: vi.fn(() => null),
 }))
 
+vi.mock('twilio', () => {
+  const mockClient = {
+    messages: {
+      create: vi.fn().mockResolvedValue({ sid: 'SM_test_sid' }),
+    },
+  }
+  return {
+    default: vi.fn(() => mockClient),
+  }
+})
+
 import { loadConfig } from '../../../src/lib/config.js'
 import {
   sendInvite,

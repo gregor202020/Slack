@@ -78,19 +78,6 @@ const successResponse = {
   },
 }
 
-const errorResponse = {
-  type: 'object' as const,
-  properties: {
-    error: {
-      type: 'object' as const,
-      properties: {
-        code: { type: 'string' as const },
-        message: { type: 'string' as const },
-      },
-    },
-  },
-}
-
 const paginationQuery = {
   type: 'object' as const,
   properties: {
@@ -123,7 +110,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            data: {
+            channels: {
               type: 'array',
               items: {
                 type: 'object',
@@ -141,7 +128,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
             nextCursor: { type: 'string', nullable: true },
           },
         },
-        422: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -195,7 +181,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, validateBody(createChannelSchema)],
@@ -244,7 +229,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
             memberCount: { type: 'integer' },
           },
         },
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -282,8 +266,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
             updatedAt: { type: 'string', format: 'date-time' },
           },
         },
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId'), validateBody(updateChannelSchema)],
@@ -307,8 +289,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       params: channelIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -330,8 +310,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       params: channelIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -354,8 +332,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       params: channelIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -382,7 +358,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            data: {
+            members: {
               type: 'array',
               items: {
                 type: 'object',
@@ -398,7 +374,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
             nextCursor: { type: 'string', nullable: true },
           },
         },
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -435,7 +410,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         201: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId'), validateBody(addMembersSchema)],
@@ -465,7 +439,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -507,8 +480,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       params: channelIdParam,
       response: {
         200: successResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -572,7 +543,6 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: successResponse,
-        403: errorResponse,
       },
     },
     preHandler: [

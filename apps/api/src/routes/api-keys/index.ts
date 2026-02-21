@@ -133,8 +133,19 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
       tags: ['API Keys'],
       params: { type: 'object', required: ['keyId'], properties: { keyId: { type: 'string', format: 'uuid' } } },
       response: {
-        200: { type: 'object' },
-        404: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+        200: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string' },
+            scopes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+            ipAllowlist: { type: 'array', items: { type: 'string' }, nullable: true },
+            rateLimit: { type: 'integer', nullable: true },
+            createdBy: { type: 'string', format: 'uuid' },
+            revokedAt: { type: 'string', format: 'date-time', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
@@ -258,8 +269,8 @@ export async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.user!
       const { ipAddress, userAgent } = extractAuditContext(request)
       const { keyId } = request.params as { keyId: string }
-      const result = await revokeApiKey(keyId, id, ipAddress, userAgent)
-      return reply.status(200).send(result)
+      await revokeApiKey(keyId, id, ipAddress, userAgent)
+      return reply.status(200).send({ success: true })
     },
   })
 }

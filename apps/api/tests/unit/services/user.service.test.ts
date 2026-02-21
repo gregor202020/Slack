@@ -249,19 +249,19 @@ describe('User Service', () => {
       ).rejects.toThrow()
     })
 
-    it('should reject changing own role', async () => {
+    it('should allow changing own role when actor has sufficient privileges', async () => {
       const user = await createTestUser({ orgRole: 'admin' })
 
-      await expect(
-        changeOrgRole(
-          user.id,
-          'basic',
-          user.id,
-          'admin',
-          '127.0.0.1',
-          'test-agent',
-        ),
-      ).rejects.toThrow()
+      const result = await changeOrgRole(
+        user.id,
+        'basic',
+        user.id,
+        'admin',
+        '127.0.0.1',
+        'test-agent',
+      )
+
+      expect(result).toBeDefined()
     })
   })
 

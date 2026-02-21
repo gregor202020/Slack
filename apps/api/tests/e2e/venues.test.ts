@@ -33,7 +33,7 @@ describe('Venue API', () => {
 
   beforeAll(async () => {
     app = await buildTestApp()
-  })
+  }, 30000)
 
   afterAll(async () => {
     await cleanupTestData()
@@ -174,6 +174,7 @@ describe('Venue API', () => {
       const token = generateTestToken(user.id, session.id)
 
       const venue = await createTestVenue({ name: 'Detail Venue' })
+      await addUserToVenue(user.id, venue.id, 'basic')
 
       const response = await app.inject({
         method: 'GET',
@@ -381,8 +382,10 @@ describe('Venue API', () => {
       const token = generateTestToken(admin.id, session.id)
 
       const venue = await createTestVenue({ name: 'Remove Member Venue' })
+      const otherVenue = await createTestVenue({ name: 'Other Venue' })
       await addUserToVenue(admin.id, venue.id, 'admin')
       await addUserToVenue(member.id, venue.id, 'basic')
+      await addUserToVenue(member.id, otherVenue.id, 'basic')
 
       const response = await app.inject({
         method: 'DELETE',

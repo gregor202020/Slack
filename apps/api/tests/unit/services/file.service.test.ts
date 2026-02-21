@@ -27,14 +27,16 @@ vi.mock('../../../src/plugins/firebase.js', () => ({
   getFirebaseApp: vi.fn(() => null),
 }))
 
-vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: vi.fn(() => ({
-    send: vi.fn().mockResolvedValue({}),
-  })),
-  PutObjectCommand: vi.fn(),
-  GetObjectCommand: vi.fn(),
-  DeleteObjectCommand: vi.fn(),
-}))
+vi.mock('@aws-sdk/client-s3', () => {
+  const MockS3Client = vi.fn()
+  MockS3Client.prototype.send = vi.fn().mockResolvedValue({})
+  return {
+    S3Client: MockS3Client,
+    PutObjectCommand: vi.fn(),
+    GetObjectCommand: vi.fn(),
+    DeleteObjectCommand: vi.fn(),
+  }
+})
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn(() => Promise.resolve('https://s3.example.com/signed-url')),
@@ -276,8 +278,8 @@ describe('File Service', () => {
       const usage = await getStorageUsage(user.id)
 
       expect(usage).toBeDefined()
-      expect(typeof usage.usedBytes).toBe('number')
-      expect(typeof usage.quotaBytes).toBe('number')
+      expect(typeof usage.used).toBe('number')
+      expect(typeof usage.quota).toBe('number')
     })
 
     it('should reflect file uploads in usage count', async () => {
@@ -291,7 +293,7 @@ describe('File Service', () => {
 
       const usage = await getStorageUsage(user.id)
 
-      expect(usage.usedBytes).toBeGreaterThanOrEqual(5000)
+      expect(usage.used).toBeGreaterThanOrEqual(5000)
     })
   })
 })

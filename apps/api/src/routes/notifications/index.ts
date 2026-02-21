@@ -85,8 +85,8 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
         token: string
         platform: string
       }
-      const result = await registerDevice(id, token, platform)
-      return reply.status(200).send(result)
+      await registerDevice(id, token, platform)
+      return reply.status(200).send({ success: true })
     },
   })
 

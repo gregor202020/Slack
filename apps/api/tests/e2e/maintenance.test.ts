@@ -344,7 +344,7 @@ describe('Maintenance API', () => {
       expect(response.statusCode).toBe(200)
     })
 
-    it('should change status to done', async () => {
+    it('should change status to done via in_progress', async () => {
       const user = await createTestUser({ orgRole: 'basic' })
       const session = await createTestSession(user.id)
       const token = generateTestToken(user.id, session.id)
@@ -365,6 +365,15 @@ describe('Maintenance API', () => {
       })
       const request = createResponse.json()
 
+      // First transition: open -> in_progress
+      await app.inject({
+        method: 'PATCH',
+        url: `/api/maintenance/${request.id}/status`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { status: 'in_progress' },
+      })
+
+      // Then transition: in_progress -> done
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/maintenance/${request.id}/status`,

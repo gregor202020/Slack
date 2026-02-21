@@ -67,7 +67,8 @@ describe('DM Service', () => {
       const user2 = await createTestUser()
 
       const dm = await createDm(
-        { type: 'direct', memberIds: [user1.id, user2.id] },
+        'direct',
+        [user1.id, user2.id],
         user1.id,
         '127.0.0.1',
         'test-agent',
@@ -84,7 +85,8 @@ describe('DM Service', () => {
       const user3 = await createTestUser()
 
       const dm = await createDm(
-        { type: 'group', memberIds: [user1.id, user2.id, user3.id] },
+        'group',
+        [user1.id, user2.id, user3.id],
         user1.id,
         '127.0.0.1',
         'test-agent',
@@ -99,14 +101,16 @@ describe('DM Service', () => {
       const user2 = await createTestUser()
 
       const dm1 = await createDm(
-        { type: 'direct', memberIds: [user1.id, user2.id] },
+        'direct',
+        [user1.id, user2.id],
         user1.id,
         '127.0.0.1',
         'test-agent',
       )
 
       const dm2 = await createDm(
-        { type: 'direct', memberIds: [user1.id, user2.id] },
+        'direct',
+        [user1.id, user2.id],
         user1.id,
         '127.0.0.1',
         'test-agent',
@@ -120,7 +124,8 @@ describe('DM Service', () => {
 
       await expect(
         createDm(
-          { type: 'direct', memberIds: [user1.id] },
+          'direct',
+          [user1.id],
           user1.id,
           '127.0.0.1',
           'test-agent',
@@ -135,7 +140,8 @@ describe('DM Service', () => {
 
       await expect(
         createDm(
-          { type: 'direct', memberIds: [user1.id, user2.id, user3.id] },
+          'direct',
+          [user1.id, user2.id, user3.id],
           user1.id,
           '127.0.0.1',
           'test-agent',

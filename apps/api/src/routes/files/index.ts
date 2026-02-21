@@ -27,29 +27,19 @@ import {
 // Shared schema fragments
 // ---------------------------------------------------------------------------
 
-const errorResponse = {
-  type: 'object' as const,
-  properties: {
-    error: {
-      type: 'object' as const,
-      properties: {
-        code: { type: 'string' as const },
-        message: { type: 'string' as const },
-      },
-    },
-  },
-}
-
 const fileResponse = {
   type: 'object' as const,
   properties: {
     id: { type: 'string' as const, format: 'uuid' },
-    filename: { type: 'string' as const },
-    mimeType: { type: 'string' as const },
-    size: { type: 'integer' as const },
     userId: { type: 'string' as const, format: 'uuid' },
     channelId: { type: 'string' as const, format: 'uuid', nullable: true },
     dmId: { type: 'string' as const, format: 'uuid', nullable: true },
+    messageId: { type: 'string' as const, format: 'uuid', nullable: true },
+    originalFilename: { type: 'string' as const },
+    sanitizedFilename: { type: 'string' as const },
+    mimeType: { type: 'string' as const },
+    sizeBytes: { type: 'integer' as const },
+    s3Key: { type: 'string' as const },
     createdAt: { type: 'string' as const, format: 'date-time' },
   },
 }
@@ -65,7 +55,7 @@ const paginationQuery = {
 const paginatedFilesResponse = {
   type: 'object' as const,
   properties: {
-    data: {
+    files: {
       type: 'array' as const,
       items: fileResponse,
     },
@@ -84,8 +74,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       consumes: ['multipart/form-data'],
       response: {
         201: fileResponse,
-        400: errorResponse,
-        403: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -160,7 +148,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: fileResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -189,11 +176,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         200: {
           type: 'object',
           properties: {
-            downloadUrl: { type: 'string', description: 'Signed download URL' },
-            expiresIn: { type: 'integer', description: 'URL expiry time in seconds' },
+            url: { type: 'string', description: 'Signed download URL' },
+            expiresAt: { type: 'string', format: 'date-time', description: 'URL expiry timestamp' },
           },
         },
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -225,8 +211,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
             success: { type: 'boolean' },
           },
         },
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -255,7 +239,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       querystring: paginationQuery,
       response: {
         200: paginatedFilesResponse,
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -285,7 +268,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       querystring: paginationQuery,
       response: {
         200: paginatedFilesResponse,
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, requireDmMembership('dmId')],
@@ -308,7 +290,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       querystring: paginationQuery,
       response: {
         200: paginatedFilesResponse,
-        422: errorResponse,
       },
     },
     preHandler: [authenticate],

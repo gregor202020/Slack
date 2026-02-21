@@ -63,7 +63,6 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: { type: 'object', properties: { data: { type: 'object' } } },
-        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -118,7 +117,6 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
       params: { type: 'object', required: ['channelId'], properties: { channelId: { type: 'string', format: 'uuid' } } },
       response: {
         200: { type: 'object', properties: { data: { type: 'object' } } },
-        403: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -304,7 +302,6 @@ export async function canvasRoutes(app: FastifyInstance): Promise<void> {
             },
           },
         },
-        422: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
       },
     },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],

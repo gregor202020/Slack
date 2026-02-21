@@ -58,32 +58,49 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             messages: {
-              type: 'object',
-              properties: {
-                data: { type: 'array', items: { type: 'object' } },
-                nextCursor: { type: 'string', nullable: true },
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  body: { type: 'string' },
+                  headline: { type: 'string' },
+                  userId: { type: 'string', format: 'uuid' },
+                  authorName: { type: 'string' },
+                  channelId: { type: 'string', format: 'uuid', nullable: true },
+                  channelName: { type: 'string', nullable: true },
+                  dmId: { type: 'string', format: 'uuid', nullable: true },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
               },
             },
             channels: {
               type: 'array',
-              items: { type: 'object' },
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  name: { type: 'string' },
+                  topic: { type: 'string', nullable: true },
+                  type: { type: 'string' },
+                  scope: { type: 'string' },
+                  status: { type: 'string' },
+                },
+              },
             },
             users: {
               type: 'array',
-              items: { type: 'object' },
-            },
-          },
-        },
-        422: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  fullName: { type: 'string' },
+                  orgRole: { type: 'string' },
+                  status: { type: 'string' },
+                },
               },
             },
+            nextCursor: { type: 'string', nullable: true },
           },
         },
       },
@@ -114,12 +131,12 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
 
         case 'channels': {
           const result = await searchChannels(q, id, orgRole)
-          return reply.status(200).send(result)
+          return reply.status(200).send({ channels: result, messages: [], users: [] })
         }
 
         case 'users': {
           const result = await searchUsers(q)
-          return reply.status(200).send(result)
+          return reply.status(200).send({ users: result, messages: [], channels: [] })
         }
 
         case 'all':

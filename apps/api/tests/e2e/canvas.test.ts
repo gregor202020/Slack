@@ -140,7 +140,7 @@ describe('Canvas API', () => {
         headers: { authorization: `Bearer ${token}` },
       })
 
-      // Send a base64-encoded update (a minimal valid Yjs update)
+      // Send a base64-encoded update (may not be a fully valid Yjs update)
       const update = Buffer.from([0, 1, 0]).toString('base64')
 
       const response = await app.inject({

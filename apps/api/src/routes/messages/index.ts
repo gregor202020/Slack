@@ -62,6 +62,11 @@ async function assertMessageAccess(messageId: string, userId: string): Promise<v
 // Inline Zod schemas
 // ---------------------------------------------------------------------------
 
+const channelMessageSchema = z.object({
+  body: z.string().min(1).max(40_000),
+  parentMessageId: z.string().uuid().optional(),
+})
+
 const dmMessageSchema = z.object({
   body: z.string().min(1).max(40_000),
   parentMessageId: z.string().uuid().optional(),
@@ -75,25 +80,12 @@ const threadReplySchema = z.object({
 // Shared schema fragments
 // ---------------------------------------------------------------------------
 
-const errorResponse = {
-  type: 'object' as const,
-  properties: {
-    error: {
-      type: 'object' as const,
-      properties: {
-        code: { type: 'string' as const },
-        message: { type: 'string' as const },
-      },
-    },
-  },
-}
-
 const messageResponse = {
   type: 'object' as const,
   properties: {
     id: { type: 'string' as const, format: 'uuid' },
     body: { type: 'string' as const },
-    senderId: { type: 'string' as const, format: 'uuid' },
+    userId: { type: 'string' as const, format: 'uuid' },
     channelId: { type: 'string' as const, format: 'uuid', nullable: true },
     dmId: { type: 'string' as const, format: 'uuid', nullable: true },
     parentMessageId: { type: 'string' as const, format: 'uuid', nullable: true },
@@ -107,7 +99,7 @@ const messageResponse = {
 const paginatedMessagesResponse = {
   type: 'object' as const,
   properties: {
-    data: {
+    messages: {
       type: 'array' as const,
       items: messageResponse,
     },
@@ -144,7 +136,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       querystring: paginationQuery,
       response: {
         200: paginatedMessagesResponse,
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, requireChannelMembership('channelId')],
@@ -182,14 +173,12 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         201: messageResponse,
-        403: errorResponse,
-        422: errorResponse,
       },
     },
     preHandler: [
       authenticate,
       requireChannelMembership('channelId'),
-      validateBody(sendMessageSchema),
+      validateBody(channelMessageSchema),
     ],
     config: {
       rateLimit: {
@@ -232,7 +221,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         201: messageResponse,
-        403: errorResponse,
       },
     },
     preHandler: [
@@ -274,7 +262,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       querystring: paginationQuery,
       response: {
         200: paginatedMessagesResponse,
-        422: errorResponse,
       },
     },
     preHandler: [authenticate, requireDmMembership('dmId')],
@@ -303,8 +290,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: messageResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -338,8 +323,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         200: messageResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, validateBody(editMessageSchema)],
@@ -372,8 +355,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
             success: { type: 'boolean' },
           },
         },
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -404,7 +385,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       querystring: paginationQuery,
       response: {
         200: paginatedMessagesResponse,
-        422: errorResponse,
       },
     },
     preHandler: [authenticate],
@@ -441,8 +421,6 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
       },
       response: {
         201: messageResponse,
-        403: errorResponse,
-        404: errorResponse,
       },
     },
     preHandler: [authenticate, validateBody(threadReplySchema)],

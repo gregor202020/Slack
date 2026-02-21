@@ -50,19 +50,28 @@ function generateTemplateId(): string {
 /**
  * Merge a new Yjs binary update into the existing state.
  * Returns the full merged state as a Buffer.
+ * Throws a ValidationError if the update is not valid Yjs binary.
  */
 function mergeYjsUpdate(existingState: Buffer | null, update: Buffer): Buffer {
   const doc = new Y.Doc()
 
-  if (existingState && existingState.length > 0) {
-    Y.applyUpdate(doc, existingState)
+  try {
+    if (existingState && existingState.length > 0) {
+      Y.applyUpdate(doc, existingState)
+    }
+
+    Y.applyUpdate(doc, update)
+
+    const merged = Buffer.from(Y.encodeStateAsUpdate(doc))
+    return merged
+  } catch (err) {
+    throw new ValidationError(
+      'Invalid Yjs update binary',
+      'INVALID_YJS_UPDATE',
+    )
+  } finally {
+    doc.destroy()
   }
-
-  Y.applyUpdate(doc, update)
-
-  const merged = Buffer.from(Y.encodeStateAsUpdate(doc))
-  doc.destroy()
-  return merged
 }
 
 /**
@@ -530,5 +539,5 @@ export async function deleteTemplate(templateId: string) {
   await redis.del(`${TEMPLATE_KEY_PREFIX}${templateId}`)
   await redis.srem(TEMPLATE_LIST_KEY, templateId)
 
-  return { id: templateId }
+  return { success: true as const }
 }

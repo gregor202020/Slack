@@ -268,34 +268,34 @@ describe('Canvas Service', () => {
   // -------------------------------------------------------------------------
 
   describe('template management', () => {
-    it('should create and list templates', () => {
+    it('should create and list templates', async () => {
       const doc = new Y.Doc()
       const state = Buffer.from(Y.encodeStateAsUpdate(doc))
       doc.destroy()
 
-      const template = createTemplate('Meeting Notes', state)
+      const template = await createTemplate('Meeting Notes', state)
 
       expect(template.id).toBeDefined()
       expect(template.name).toBe('Meeting Notes')
 
-      const templates = listTemplates()
+      const templates = await listTemplates()
       const found = templates.find((t: { id: string }) => t.id === template.id)
       expect(found).toBeDefined()
     })
 
-    it('should delete a template', () => {
+    it('should delete a template', async () => {
       const doc = new Y.Doc()
       const state = Buffer.from(Y.encodeStateAsUpdate(doc))
       doc.destroy()
 
-      const template = createTemplate('To Delete', state)
-      const result = deleteTemplate(template.id)
+      const template = await createTemplate('To Delete', state)
+      const result = await deleteTemplate(template.id)
 
-      expect(result.id).toBe(template.id)
+      expect(result.success).toBe(true)
     })
 
-    it('should throw when deleting non-existent template', () => {
-      expect(() => deleteTemplate('non-existent-id')).toThrow()
+    it('should throw when deleting non-existent template', async () => {
+      await expect(deleteTemplate('non-existent-id')).rejects.toThrow()
     })
   })
 })

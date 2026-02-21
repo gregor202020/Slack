@@ -74,18 +74,6 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
             nextCursor: { type: 'string', nullable: true },
           },
         },
-        422: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'object',
-              properties: {
-                code: { type: 'string' },
-                message: { type: 'string' },
-              },
-            },
-          },
-        },
       },
     },
     preHandler: [authenticate],
@@ -102,7 +90,10 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
       }
       const { cursor, limit } = parsed.data
       const result = await listBookmarks(id, cursor, limit)
-      return reply.status(200).send(result)
+      return reply.status(200).send({
+        data: result.bookmarks,
+        nextCursor: result.nextCursor,
+      })
     },
   })
 

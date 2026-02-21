@@ -359,7 +359,7 @@ describe('API Keys API', () => {
         url: `/api/admin/api-keys/${created.id}/ip-allowlist`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          ipAllowlist: ['10.0.0.1', '192.168.1.0/24'],
+          ipAllowlist: ['10.0.0.1/32', '192.168.1.0/24'],
         },
       })
 
@@ -378,7 +378,7 @@ describe('API Keys API', () => {
         payload: {
           name: 'Clear IP Test',
           scopes: [{ action: 'read', resource: 'messages' }],
-          ipAllowlist: ['10.0.0.1'],
+          ipAllowlist: ['10.0.0.1/32'],
         },
       })
       const created = createResponse.json()

@@ -493,6 +493,32 @@ export async function createTestFile(
 }
 
 // ---------------------------------------------------------------------------
+// Test position creation
+// ---------------------------------------------------------------------------
+
+export interface TestPosition {
+  id: string
+  name: string
+}
+
+export async function createTestPosition(
+  overrides: Partial<{
+    id: string
+    name: string
+  }> = {},
+): Promise<TestPosition> {
+  const [position] = await db
+    .insert(positions)
+    .values({
+      id: overrides.id,
+      name: overrides.name ?? `Test Position ${Date.now()}`,
+    })
+    .returning()
+
+  return position as TestPosition
+}
+
+// ---------------------------------------------------------------------------
 // Cleanup
 // ---------------------------------------------------------------------------
 

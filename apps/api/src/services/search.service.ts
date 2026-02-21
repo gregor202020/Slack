@@ -85,7 +85,7 @@ export async function searchMessages(
 
   if (options.cursor) {
     baseConditions.push(
-      sql`${messages.createdAt} < ${new Date(options.cursor)}` as ReturnType<typeof eq>,
+      sql`${messages.createdAt} < ${options.cursor}` as ReturnType<typeof eq>,
     )
   }
 

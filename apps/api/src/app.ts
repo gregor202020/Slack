@@ -119,10 +119,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   // --- Register Swagger (before routes so it can collect schemas) ---
   await registerSwagger(app)
 
-  // --- Register routes ---
-  await registerRoutes(app)
-
   // --- Global error handler with correlation IDs ---
+  // NOTE: Must be set BEFORE registerRoutes so encapsulated route plugins inherit it.
   app.setErrorHandler((error: FastifyError | AppError | Error, request, reply) => {
     const correlationId = request.id
     const userId = request.user?.id
@@ -217,6 +215,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       },
     })
   })
+
+  // --- Register routes ---
+  await registerRoutes(app)
 
   // --- Health check route with dependency checks ---
   app.get('/health', async () => {

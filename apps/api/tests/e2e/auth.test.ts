@@ -12,8 +12,22 @@
  *   GET  /api/users/me      — get current user profile
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
+
+// Mock Twilio so requestOtp does not call real SMS APIs in test env
+// (NODE_ENV=test means isDevelopment is false, so twilio would be imported)
+vi.mock('twilio', () => {
+  const mockClient = {
+    messages: {
+      create: vi.fn().mockResolvedValue({ sid: 'SM_test_sid' }),
+    },
+  }
+  return {
+    default: vi.fn(() => mockClient),
+  }
+})
+
 import { buildTestApp } from '../helpers/app'
 import {
   generateTestToken,
@@ -126,12 +140,14 @@ describe('Auth API', () => {
     })
 
     it('should return 401 for expired OTP (no OTP requested)', async () => {
-      await createTestUser({ phone: '+15551234567' })
+      // Use a unique phone number that has never had an OTP requested
+      // to avoid stale OTPs in Redis from other tests
+      await createTestUser({ phone: '+15559876543' })
 
       const response = await app.inject({
         method: 'POST',
         url: '/api/auth/verify',
-        payload: { phone: '+15551234567', code: '123456' },
+        payload: { phone: '+15559876543', code: '123456' },
       })
 
       expect(response.statusCode).toBe(401)
