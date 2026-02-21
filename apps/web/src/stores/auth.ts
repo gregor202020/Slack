@@ -50,9 +50,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   requestOtp: async (phone: string) => {
-    await api('/api/auth/otp/request', {
+    await api('/api/auth', {
       method: 'POST',
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, method: 'sms' }),
     })
   },
 
@@ -61,7 +61,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       accessToken: string
       user: User
       needsOnboarding: boolean
-    }>('/api/auth/otp/verify', {
+    }>('/api/auth/verify', {
       method: 'POST',
       body: JSON.stringify({ phone, code }),
     })

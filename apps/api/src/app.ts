@@ -252,83 +252,101 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
   })
 
+  // --- Metrics auth guard ---
+  // In production, if METRICS_TOKEN is set, require Bearer token auth.
+  // In development or when METRICS_TOKEN is empty, allow unrestricted access.
+  const metricsPreHandler = config.isProduction && config.metricsToken
+    ? async (request: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => {
+        const authHeader = request.headers.authorization
+        if (!authHeader || authHeader !== `Bearer ${config.metricsToken}`) {
+          return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid metrics token' } })
+        }
+      }
+    : undefined
+
   // --- Metrics endpoint ---
-  app.get('/api/metrics', async () => {
-    const metrics = getMetrics()
+  app.get('/api/metrics', {
+    ...(metricsPreHandler ? { preHandler: metricsPreHandler } : {}),
+    handler: async () => {
+      const metrics = getMetrics()
 
-    // Active WebSocket connections count
-    let wsConnections = 0
-    try {
-      const { getIO } = await import('./plugins/socket.js')
-      const io = getIO()
-      const sockets = await io.fetchSockets()
-      wsConnections = sockets.length
-    } catch {
-      // Socket.io not yet initialized — that's fine
-    }
+      // Active WebSocket connections count
+      let wsConnections = 0
+      try {
+        const { getIO } = await import('./plugins/socket.js')
+        const io = getIO()
+        const sockets = await io.fetchSockets()
+        wsConnections = sockets.length
+      } catch {
+        // Socket.io not yet initialized — that's fine
+      }
 
-    // Database connectivity check
-    let dbOk = false
-    try {
-      await pgSql`SELECT 1`
-      dbOk = true
-    } catch {
-      dbOk = false
-    }
+      // Database connectivity check
+      let dbOk = false
+      try {
+        await pgSql`SELECT 1`
+        dbOk = true
+      } catch {
+        dbOk = false
+      }
 
-    // Redis connectivity check
-    let redisOk = false
-    try {
-      const { getRedis } = await import('./lib/redis.js')
-      await getRedis().ping()
-      redisOk = true
-    } catch {
-      redisOk = false
-    }
+      // Redis connectivity check
+      let redisOk = false
+      try {
+        const { getRedis } = await import('./lib/redis.js')
+        await getRedis().ping()
+        redisOk = true
+      } catch {
+        redisOk = false
+      }
 
-    return {
-      ...metrics,
-      websockets: { activeConnections: wsConnections },
-      database: { connected: dbOk },
-      redis: { connected: redisOk },
-    }
+      return {
+        ...metrics,
+        websockets: { activeConnections: wsConnections },
+        database: { connected: dbOk },
+        redis: { connected: redisOk },
+      }
+    },
   })
 
   // --- Prometheus metrics endpoint ---
-  app.get('/metrics', async (_request, reply) => {
-    // Collect runtime state for Prometheus output
-    let wsConnections = 0
-    try {
-      const { getIO } = await import('./plugins/socket.js')
-      const io = getIO()
-      const sockets = await io.fetchSockets()
-      wsConnections = sockets.length
-    } catch {
-      // Socket.io not yet initialized
-    }
+  app.get('/metrics', {
+    ...(metricsPreHandler ? { preHandler: metricsPreHandler } : {}),
+    handler: async (_request, reply) => {
+      // Collect runtime state for Prometheus output
+      let wsConnections = 0
+      try {
+        const { getIO } = await import('./plugins/socket.js')
+        const io = getIO()
+        const sockets = await io.fetchSockets()
+        wsConnections = sockets.length
+      } catch {
+        // Socket.io not yet initialized
+      }
 
-    let dbConnected = false
-    try {
-      await pgSql`SELECT 1`
-      dbConnected = true
-    } catch {
-      // db unreachable
-    }
+      let dbConnected = false
+      try {
+        await pgSql`SELECT 1`
+        dbConnected = true
+      } catch {
+        // db unreachable
+      }
 
-    let redisConnected = false
-    try {
-      const { getRedis } = await import('./lib/redis.js')
-      await getRedis().ping()
-      redisConnected = true
-    } catch {
-      // redis unreachable
-    }
+      let redisConnected = false
+      try {
+        const { getRedis } = await import('./lib/redis.js')
+        await getRedis().ping()
+        redisConnected = true
+      } catch {
+        // redis unreachable
+      }
 
-    const body = getPrometheusMetrics({ wsConnections, dbConnected, redisConnected })
+      const body = getPrometheusMetrics({ wsConnections, dbConnected, redisConnected })
 
-    return reply
-      .header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
-      .send(body)
+      return reply
+        .header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+        .send(body)
+    },
   })
 
   // --- CSP violation report endpoint (spec Section 16.10) ---

@@ -4,6 +4,8 @@
 
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
+import { db, users } from '@smoker/db'
 import { authenticate } from '../../middleware/auth.js'
 import { validateBody } from '../../middleware/validate.js'
 import {
@@ -11,6 +13,7 @@ import {
   unregisterDevice,
 } from '../../services/notification.service.js'
 import { getRedis } from '../../lib/redis.js'
+import { logger } from '../../lib/logger.js'
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -143,14 +146,50 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request, reply) => {
       const { id } = request.user!
       const redis = getRedis()
-      const raw = await redis.get(`${NOTIF_PREFS_KEY_PREFIX}${id}`)
 
-      if (!raw) {
+      // Try Redis cache first
+      const raw = await redis.get(`${NOTIF_PREFS_KEY_PREFIX}${id}`)
+      if (raw) {
+        try {
+          const stored = JSON.parse(raw)
+          return reply.status(200).send({ ...DEFAULT_PREFS, ...stored })
+        } catch {
+          logger.warn({ userId: id }, 'Failed to parse cached notification prefs, falling back to DB')
+        }
+      }
+
+      // Fall back to database
+      const [user] = await db
+        .select({ notificationPreferences: users.notificationPreferences })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1)
+
+      if (!user || !user.notificationPreferences) {
         return reply.status(200).send(DEFAULT_PREFS)
       }
 
-      const stored = JSON.parse(raw)
-      return reply.status(200).send({ ...DEFAULT_PREFS, ...stored })
+      let dbPrefs: Record<string, unknown> = {}
+      try {
+        dbPrefs = typeof user.notificationPreferences === 'string'
+          ? JSON.parse(user.notificationPreferences)
+          : user.notificationPreferences as Record<string, unknown>
+      } catch {
+        logger.warn({ userId: id }, 'Failed to parse DB notification prefs, using defaults')
+        return reply.status(200).send(DEFAULT_PREFS)
+      }
+
+      const merged = { ...DEFAULT_PREFS, ...dbPrefs }
+
+      // Populate Redis cache (expire after 1 hour)
+      await redis.set(
+        `${NOTIF_PREFS_KEY_PREFIX}${id}`,
+        JSON.stringify(merged),
+        'EX',
+        3600,
+      )
+
+      return reply.status(200).send(merged)
     },
   })
 
@@ -193,12 +232,54 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
       const body = request.body as z.infer<typeof notificationPrefsSchema>
       const redis = getRedis()
 
-      // Merge with existing prefs
+      // Merge with existing prefs from Redis cache or DB
+      let existing: Record<string, unknown> = {}
       const raw = await redis.get(`${NOTIF_PREFS_KEY_PREFIX}${id}`)
-      const existing = raw ? JSON.parse(raw) : {}
+      if (raw) {
+        try {
+          existing = JSON.parse(raw)
+        } catch {
+          logger.warn({ userId: id }, 'Failed to parse cached notification prefs on PUT')
+        }
+      }
+
+      // If cache was empty, try DB
+      if (!raw) {
+        const [user] = await db
+          .select({ notificationPreferences: users.notificationPreferences })
+          .from(users)
+          .where(eq(users.id, id))
+          .limit(1)
+
+        if (user?.notificationPreferences) {
+          try {
+            existing = typeof user.notificationPreferences === 'string'
+              ? JSON.parse(user.notificationPreferences)
+              : user.notificationPreferences as Record<string, unknown>
+          } catch {
+            logger.warn({ userId: id }, 'Failed to parse DB notification prefs on PUT')
+          }
+        }
+      }
+
       const merged = { ...DEFAULT_PREFS, ...existing, ...body }
 
-      await redis.set(`${NOTIF_PREFS_KEY_PREFIX}${id}`, JSON.stringify(merged))
+      // Persist to database
+      await db
+        .update(users)
+        .set({
+          notificationPreferences: merged,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+
+      // Update Redis cache (expire after 1 hour)
+      await redis.set(
+        `${NOTIF_PREFS_KEY_PREFIX}${id}`,
+        JSON.stringify(merged),
+        'EX',
+        3600,
+      )
 
       return reply.status(200).send(merged)
     },

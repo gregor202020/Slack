@@ -76,6 +76,7 @@ jobs:
       S3_SECRET_KEY: test-secret-key
       S3_FILE_DOMAIN: https://test-files.example.com
       PII_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      INVITE_HMAC_SECRET: test-invite-hmac-secret-for-ci-pipeline
       FIREBASE_SERVICE_ACCOUNT_PATH: ''
     steps:
       - uses: actions/checkout@v4

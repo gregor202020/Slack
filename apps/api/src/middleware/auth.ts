@@ -2,7 +2,6 @@
  * Authentication middleware for Fastify routes.
  *
  * - authenticate: Requires a valid access token (Bearer token in Authorization header).
- * - authenticateOptional: Same but allows unauthenticated access.
  * - requireReauth: Requires a fresh OTP verification within the last 5 minutes.
  */
 
@@ -123,59 +122,6 @@ export const authenticate: preHandlerHookHandler = async (
     sessionId: payload.sessionId,
     orgRole: user.orgRole,
     status: user.status,
-  }
-}
-
-/**
- * Fastify preHandler that optionally authenticates.
- * Does not fail if no token is present — for public endpoints that
- * behave differently when the user is authenticated.
- */
-export const authenticateOptional: preHandlerHookHandler = async (
-  request: FastifyRequest,
-  _reply: FastifyReply,
-): Promise<void> => {
-  const token = extractBearerToken(request)
-  if (!token) return
-
-  try {
-    const payload = verifyToken(token)
-
-    // Check if the session is revoked
-    const [session] = await db
-      .select()
-      .from(userSessions)
-      .where(eq(userSessions.id, payload.sessionId))
-      .limit(1)
-
-    if (!session || session.revokedAt) return
-
-    // Check if the session has expired
-    if (session.expiresAt < new Date()) return
-
-    // Look up the user and check status
-    const [user] = await db
-      .select({
-        id: users.id,
-        orgRole: users.orgRole,
-        status: users.status,
-      })
-      .from(users)
-      .where(eq(users.id, payload.userId))
-      .limit(1)
-
-    if (!user) return
-
-    if (user.status === 'suspended' || user.status === 'deactivated') return
-
-    request.user = {
-      id: user.id,
-      sessionId: payload.sessionId,
-      orgRole: user.orgRole,
-      status: user.status,
-    }
-  } catch {
-    // Silently ignore token errors for optional auth
   }
 }
 

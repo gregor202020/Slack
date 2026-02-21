@@ -6,80 +6,123 @@
  */
 
 function required(name: string): string {
-  const value = process.env[name];
+  const value = process.env[name]
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error(`Missing required environment variable: ${name}`)
   }
-  return value;
+  return value
 }
 
 function optional(name: string, defaultValue: string): string {
-  return process.env[name] ?? defaultValue;
+  return process.env[name] ?? defaultValue
 }
 
 function optionalInt(name: string, defaultValue: number): number {
-  const raw = process.env[name];
-  if (!raw) return defaultValue;
-  const parsed = parseInt(raw, 10);
+  const raw = process.env[name]
+  if (!raw) return defaultValue
+  const parsed = parseInt(raw, 10)
   if (Number.isNaN(parsed)) {
-    throw new Error(`Environment variable ${name} must be a valid integer`);
+    throw new Error(`Environment variable ${name} must be a valid integer`)
   }
-  return parsed;
+  return parsed
+}
+
+/**
+ * Parse a time-string env var (e.g. "15m", "1h", "7d") into seconds.
+ * Falls back to parsing as a plain integer (seconds) if no unit suffix.
+ * Returns the provided default if the env var is not set.
+ */
+function parseTimeToSeconds(name: string, defaultValue: number): number {
+  const raw = process.env[name]
+  if (!raw) return defaultValue
+
+  const match = raw.match(/^(\d+)\s*(s|m|h|d)$/i)
+  if (match) {
+    const value = parseInt(match[1]!, 10)
+    const unit = match[2]!.toLowerCase()
+    switch (unit) {
+      case 's': return value
+      case 'm': return value * 60
+      case 'h': return value * 3600
+      case 'd': return value * 86400
+      default: return defaultValue
+    }
+  }
+
+  // Fall back to plain integer (seconds)
+  const parsed = parseInt(raw, 10)
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Environment variable ${name} must be a valid time string (e.g. "15m", "1h") or integer seconds`)
+  }
+  return parsed
 }
 
 export interface AppConfig {
   // Server
-  port: number;
-  host: string;
-  nodeEnv: string;
-  apiUrl: string;
-  webUrl: string;
-  isProduction: boolean;
-  isDevelopment: boolean;
+  port: number
+  host: string
+  nodeEnv: string
+  apiUrl: string
+  webUrl: string
+  isProduction: boolean
+  isDevelopment: boolean
 
   // Database
-  databaseUrl: string;
+  databaseUrl: string
 
   // Redis
-  redisUrl: string;
+  redisUrl: string
 
   // JWT
-  jwtSecret: string;
-  jwtAccessExpiry: number;
-  jwtRefreshExpiry: number;
+  jwtSecret: string
+  jwtAccessExpiry: number
+  jwtRefreshExpiry: number
+
+  // Invite HMAC
+  inviteHmacSecret: string
+
+  // OTP
+  otpLength: number
+  otpExpiryMinutes: number
 
   // Twilio
-  twilioAccountSid: string;
-  twilioAuthToken: string;
-  twilioPhoneNumber: string;
+  twilioAccountSid: string
+  twilioAuthToken: string
+  twilioPhoneNumber: string
 
   // S3
-  s3Endpoint: string;
-  s3Region: string;
-  s3Bucket: string;
-  s3AccessKey: string;
-  s3SecretKey: string;
-  s3FileDomain: string;
+  s3Endpoint: string
+  s3Region: string
+  s3Bucket: string
+  s3AccessKey: string
+  s3SecretKey: string
+  s3FileDomain: string
 
   // Encryption
-  encryptionKey: string;
+  encryptionKey: string
 
   // Firebase
-  firebaseServiceAccountPath: string;
+  firebaseServiceAccountPath: string
+
+  // CORS
+  mobileOrigins: string
+
+  // Metrics
+  metricsToken: string
 }
 
-let _config: AppConfig | null = null;
+let _config: AppConfig | null = null
 
 export function loadConfig(): AppConfig {
-  if (_config) return _config;
+  if (_config) return _config
 
-  const nodeEnv = optional('NODE_ENV', 'development');
+  const nodeEnv = optional('NODE_ENV', 'development')
 
   _config = {
-    port: optionalInt('PORT', 3001),
+    port: optionalInt('PORT', 4000),
     host: optional('HOST', '0.0.0.0'),
     nodeEnv,
-    apiUrl: optional('API_URL', 'http://localhost:3001'),
+    apiUrl: optional('API_URL', 'http://localhost:4000'),
     webUrl: optional('WEB_URL', 'http://localhost:3000'),
     isProduction: nodeEnv === 'production',
     isDevelopment: nodeEnv === 'development',
@@ -89,8 +132,13 @@ export function loadConfig(): AppConfig {
     redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
 
     jwtSecret: required('JWT_SECRET'),
-    jwtAccessExpiry: optionalInt('JWT_ACCESS_EXPIRY', 900),
-    jwtRefreshExpiry: optionalInt('JWT_REFRESH_EXPIRY', 604800),
+    jwtAccessExpiry: parseTimeToSeconds('JWT_ACCESS_EXPIRY', 900),
+    jwtRefreshExpiry: parseTimeToSeconds('JWT_REFRESH_EXPIRY', 604800),
+
+    inviteHmacSecret: optional('INVITE_HMAC_SECRET', ''),
+
+    otpLength: optionalInt('OTP_LENGTH', 6),
+    otpExpiryMinutes: optionalInt('OTP_EXPIRY_MINUTES', 5),
 
     twilioAccountSid: optional('TWILIO_ACCOUNT_SID', ''),
     twilioAuthToken: optional('TWILIO_AUTH_TOKEN', ''),
@@ -109,9 +157,13 @@ export function loadConfig(): AppConfig {
       'FIREBASE_SERVICE_ACCOUNT_PATH',
       './firebase-service-account.json',
     ),
-  };
 
-  return _config;
+    mobileOrigins: optional('MOBILE_ORIGINS', ''),
+
+    metricsToken: optional('METRICS_TOKEN', ''),
+  }
+
+  return _config
 }
 
 /**
@@ -119,7 +171,7 @@ export function loadConfig(): AppConfig {
  */
 export function getConfig(): AppConfig {
   if (!_config) {
-    throw new Error('Config not loaded. Call loadConfig() first.');
+    throw new Error('Config not loaded. Call loadConfig() first.')
   }
-  return _config;
+  return _config
 }

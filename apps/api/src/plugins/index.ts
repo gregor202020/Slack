@@ -9,28 +9,49 @@
  * - Multipart file uploads with 100MB limit
  */
 
-import type { FastifyInstance } from 'fastify';
-import fastifyCors from '@fastify/cors';
-import fastifyHelmet from '@fastify/helmet';
-import fastifyRateLimit from '@fastify/rate-limit';
-import fastifyCookie from '@fastify/cookie';
-import fastifyCsrfProtection from '@fastify/csrf-protection';
-import fastifyMultipart from '@fastify/multipart';
-import { getConfig } from '../lib/config.js';
-import { getRedis } from '../lib/redis.js';
+import type { FastifyInstance } from 'fastify'
+import fastifyCors from '@fastify/cors'
+import fastifyHelmet from '@fastify/helmet'
+import fastifyRateLimit from '@fastify/rate-limit'
+import fastifyCookie from '@fastify/cookie'
+import fastifyCsrfProtection from '@fastify/csrf-protection'
+import fastifyMultipart from '@fastify/multipart'
+import { getConfig, type AppConfig } from '../lib/config.js'
+import { getRedis } from '../lib/redis.js'
+
+/**
+ * Build the list of allowed CORS origins for production.
+ * Includes the web URL and any configured mobile origins.
+ */
+function buildCorsOrigins(config: AppConfig): string[] {
+  const origins = [config.webUrl]
+
+  if (config.mobileOrigins) {
+    const extras = config.mobileOrigins
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean)
+    origins.push(...extras)
+  }
+
+  return origins
+}
 
 export async function registerPlugins(app: FastifyInstance): Promise<void> {
-  const config = getConfig();
+  const config = getConfig()
 
-  // CORS — restrict to app domains only (spec Section 16.9.5)
+  // CORS — allow web + mobile origins (spec Section 16.9.5)
+  const corsOrigin = config.isDevelopment
+    ? true // Allow all origins in development (Expo, localhost variants, etc.)
+    : buildCorsOrigins(config)
   await app.register(fastifyCors, {
-    origin: config.webUrl,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
     exposedHeaders: ['X-Request-Id'],
     maxAge: 86400, // 24 hours
-  });
+  })
 
   // Helmet — security headers (spec Sections 16.10, 16.14)
   await app.register(fastifyHelmet, {

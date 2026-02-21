@@ -20,6 +20,12 @@ export async function exportRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/admin/export/org — Full org data export
   // Super admin only, requires re-authentication (spec Section 16.6)
   app.post('/org', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin'), requireReauth],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -33,6 +39,12 @@ export async function exportRoutes(app: FastifyInstance): Promise<void> {
   // Super admin only, requires re-authentication (spec Section 16.6)
   // Required for Australian Privacy Act Subject Access Requests
   app.post('/user/:userId', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin'), requireReauth],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -46,6 +58,12 @@ export async function exportRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/export — List all exports
   // Must be registered before /:exportId to avoid route conflict
   app.get('/', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (_request, reply) => {
       const result = await listExports()
@@ -55,6 +73,12 @@ export async function exportRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/admin/export/:exportId — Check export status
   app.get('/:exportId', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { exportId } = request.params as { exportId: string }
@@ -65,6 +89,12 @@ export async function exportRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/admin/export/:exportId/download — Download export file
   app.get('/:exportId/download', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { exportId } = request.params as { exportId: string }

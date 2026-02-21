@@ -346,7 +346,7 @@ export async function notifyNewMessage(
   if (members.length === 0) return
 
   // Skip users who are currently online (they see it in real time)
-  const onlineUserIds = getOnlineUsers()
+  const onlineUserIds = await getOnlineUsers()
   const offlineRecipients = members
     .map((m) => m.userId)
     .filter((uid) => !onlineUserIds.has(uid))

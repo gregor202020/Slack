@@ -9,6 +9,8 @@ import { io, Socket } from 'socket.io-client'
 import { AppState, type AppStateStatus } from 'react-native'
 import { API_URL, getAccessToken } from './api'
 
+const isDev = __DEV__
+
 // Strip the /api suffix to get the base server URL
 const SOCKET_URL = API_URL.replace(/\/api\/?$/, '')
 
@@ -43,19 +45,19 @@ export async function connectSocket(): Promise<Socket> {
   })
 
   socket.on('connect', () => {
-    console.log('[socket] Connected:', socket?.id)
+    if (isDev) console.log('[socket] Connected:', socket?.id)
   })
 
   socket.on('disconnect', (reason) => {
-    console.log('[socket] Disconnected:', reason)
+    if (isDev) console.log('[socket] Disconnected:', reason)
   })
 
   socket.on('connect_error', (err) => {
-    console.warn('[socket] Connection error:', err.message)
+    if (isDev) console.warn('[socket] Connection error:', err.message)
   })
 
   socket.on('session:expired', () => {
-    console.warn('[socket] Session expired — disconnecting')
+    if (isDev) console.warn('[socket] Session expired — disconnecting')
     socket?.disconnect()
   })
 

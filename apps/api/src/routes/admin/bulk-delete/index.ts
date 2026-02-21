@@ -40,6 +40,12 @@ export async function bulkDeleteRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [
       authenticate,
       requireRole('admin', 'super_admin'),
@@ -84,6 +90,12 @@ export async function bulkDeleteRoutes(app: FastifyInstance): Promise<void> {
             success: { type: 'boolean' },
           },
         },
+      },
+    },
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
       },
     },
     preHandler: [

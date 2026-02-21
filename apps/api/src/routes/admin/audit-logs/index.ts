@@ -63,6 +63,12 @@ export async function auditLogRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -138,6 +144,12 @@ export async function auditLogRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const query = request.query as {
@@ -173,6 +185,12 @@ export async function auditLogRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           description: 'JSON export or CSV file download',
         },
+      },
+    },
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute',
       },
     },
     preHandler: [authenticate, requireRole('super_admin')],
@@ -227,6 +245,12 @@ export async function auditLogRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/admin/audit-logs/:logId — Get single audit log entry
   app.get('/:logId', {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('admin', 'super_admin')],
     handler: async (request, reply) => {
       const { logId } = request.params as { logId: string }

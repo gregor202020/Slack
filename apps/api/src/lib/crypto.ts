@@ -3,12 +3,10 @@
  * PII encryption/decryption, HMAC signing, and device fingerprinting.
  */
 
-import { createHash, createHmac, randomBytes, randomInt, createCipheriv, createDecipheriv, timingSafeEqual } from 'node:crypto';
-import bcrypt from 'bcryptjs';
-import { getConfig } from './config.js';
+import { createHash, createHmac, randomBytes, randomInt, createCipheriv, createDecipheriv, timingSafeEqual } from 'node:crypto'
+import { getConfig } from './config.js'
 
-const BCRYPT_ROUNDS = 12;
-const AES_ALGORITHM = 'aes-256-gcm';
+const AES_ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12; // 96 bits for GCM
 const AUTH_TAG_LENGTH = 16; // 128 bits
 
@@ -20,11 +18,14 @@ export function hashToken(token: string): string {
 }
 
 /**
- * Generate a cryptographically random 6-digit OTP code.
+ * Generate a cryptographically random OTP code of the specified length.
+ * @param length Number of digits (default 6)
  */
-export function generateOtp(): string {
+export function generateOtp(length = 6): string {
+  const min = Math.pow(10, length - 1)
+  const max = Math.pow(10, length)
   // randomInt is cryptographically secure
-  return randomInt(100_000, 1_000_000).toString();
+  return randomInt(min, max).toString()
 }
 
 /**
@@ -112,20 +113,6 @@ export function hmacVerify(data: string, signature: string, key: string): boolea
   }
 
   return timingSafeEqual(expectedBuf, signatureBuf);
-}
-
-/**
- * Hash a password with bcrypt (for future use if password auth is added).
- */
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, BCRYPT_ROUNDS);
-}
-
-/**
- * Verify a password against a bcrypt hash.
- */
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
 }
 
 /**

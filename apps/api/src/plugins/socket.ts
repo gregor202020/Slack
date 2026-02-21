@@ -11,23 +11,86 @@ import { Server as SocketIOServer } from 'socket.io'
 import type { Server as HTTPServer } from 'node:http'
 import { createAdapter } from '@socket.io/redis-adapter'
 import Redis from 'ioredis'
-import { getConfig } from '../lib/config.js'
+import { getConfig, type AppConfig } from '../lib/config.js'
 import { verifyToken } from '../lib/jwt.js'
 import { db, channelMembers, dmMembers, dms, userSessions } from '@smoker/db'
 import { eq, and, isNull } from 'drizzle-orm'
 import { logger } from '../lib/logger.js'
+import { getRedis } from '../lib/redis.js'
 
 let io: SocketIOServer | null = null
 let revalidationInterval: ReturnType<typeof setInterval> | null = null
+let heartbeatCleanupInterval: ReturnType<typeof setInterval> | null = null
 let adapterPubClient: Redis | null = null
 let adapterSubClient: Redis | null = null
 
-/** Track online user IDs for presence */
-const onlineUsers = new Set<string>()
+// ---------------------------------------------------------------------------
+// Redis-backed presence helpers
+// ---------------------------------------------------------------------------
+
+const PRESENCE_SET_KEY = 'presence:online'
+const PRESENCE_HEARTBEAT_PREFIX = 'presence:heartbeat:'
+const HEARTBEAT_TTL_SECONDS = 60
+
+async function presenceAdd(userId: string): Promise<void> {
+  const redis = getRedis()
+  await redis.sadd(PRESENCE_SET_KEY, userId)
+  await redis.set(`${PRESENCE_HEARTBEAT_PREFIX}${userId}`, '1', 'EX', HEARTBEAT_TTL_SECONDS)
+}
+
+async function presenceRemove(userId: string): Promise<void> {
+  const redis = getRedis()
+  await redis.srem(PRESENCE_SET_KEY, userId)
+  await redis.del(`${PRESENCE_HEARTBEAT_PREFIX}${userId}`)
+}
+
+async function presenceRefreshHeartbeat(userId: string): Promise<void> {
+  const redis = getRedis()
+  await redis.set(`${PRESENCE_HEARTBEAT_PREFIX}${userId}`, '1', 'EX', HEARTBEAT_TTL_SECONDS)
+}
+
+async function presenceMembers(): Promise<Set<string>> {
+  const redis = getRedis()
+  const members = await redis.smembers(PRESENCE_SET_KEY)
+  return new Set(members)
+}
+
+/**
+ * Clean up stale presence entries whose heartbeat keys have expired.
+ */
+async function presenceCleanupStale(): Promise<void> {
+  const redis = getRedis()
+  const members = await redis.smembers(PRESENCE_SET_KEY)
+
+  for (const userId of members) {
+    const alive = await redis.exists(`${PRESENCE_HEARTBEAT_PREFIX}${userId}`)
+    if (!alive) {
+      await redis.srem(PRESENCE_SET_KEY, userId)
+      logger.debug({ userId }, 'Cleaned up stale presence entry')
+    }
+  }
+}
 
 export interface AuthenticatedSocket {
   userId: string;
   sessionId: string;
+}
+
+/**
+ * Build the list of allowed CORS origins for Socket.io in production.
+ */
+function buildSocketCorsOrigins(config: AppConfig): string[] {
+  const origins = [config.webUrl]
+
+  if (config.mobileOrigins) {
+    const extras = config.mobileOrigins
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean)
+    origins.push(...extras)
+  }
+
+  return origins
 }
 
 /**
@@ -36,9 +99,14 @@ export interface AuthenticatedSocket {
 export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
   const config = getConfig();
 
+  // Build CORS origins — allow all in dev, web + mobile in production
+  const socketCorsOrigin = config.isDevelopment
+    ? true
+    : buildSocketCorsOrigins(config)
+
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: config.webUrl,
+      origin: socketCorsOrigin as string[] | boolean,
       credentials: true,
       methods: ['GET', 'POST'],
     },
@@ -139,11 +207,17 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
       logger.error({ err, userId }, 'Failed to join Socket.io rooms')
     })
 
-    // Presence: mark user as online and broadcast
-    if (!onlineUsers.has(userId)) {
-      onlineUsers.add(userId)
-      io!.emit('presence:online', { userId })
+    // Presence: mark user as online in Redis and broadcast
+    const markOnline = async () => {
+      const wasOnline = await getRedis().sismember(PRESENCE_SET_KEY, userId)
+      await presenceAdd(userId)
+      if (!wasOnline) {
+        io!.emit('presence:online', { userId })
+      }
     }
+    markOnline().catch((err) => {
+      logger.error({ err, userId }, 'Failed to set Redis presence on connect')
+    })
 
     socket.on('disconnect', async () => {
       logger.info({ userId, socketId: socket.id }, 'Socket.io client disconnected')
@@ -151,7 +225,7 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
       // Check if the user has any other active sockets before marking offline
       const remaining = await io!.in(`user:${userId}`).fetchSockets()
       if (remaining.length === 0) {
-        onlineUsers.delete(userId)
+        await presenceRemove(userId)
         io!.emit('presence:offline', { userId })
       }
     })
@@ -264,6 +338,32 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
     }
   }, REVALIDATION_INTERVAL_MS)
 
+  // Periodic heartbeat refresh for all connected users + stale cleanup
+  const HEARTBEAT_INTERVAL_MS = 30 * 1000 // 30 seconds
+
+  heartbeatCleanupInterval = setInterval(async () => {
+    if (!io) return
+
+    try {
+      // Refresh heartbeats for all currently connected users
+      const sockets = await io.fetchSockets()
+      const connectedUserIds = new Set<string>()
+      for (const socket of sockets) {
+        const { userId } = socket.data as AuthenticatedSocket
+        connectedUserIds.add(userId)
+      }
+
+      for (const userId of connectedUserIds) {
+        await presenceRefreshHeartbeat(userId)
+      }
+
+      // Clean up stale entries (users whose heartbeat expired)
+      await presenceCleanupStale()
+    } catch (err) {
+      logger.error({ err }, 'Presence heartbeat/cleanup failed')
+    }
+  }, HEARTBEAT_INTERVAL_MS)
+
   return io
 }
 
@@ -327,10 +427,10 @@ export function emitToUser(userId: string, event: string, data: unknown): void {
 }
 
 /**
- * Get the set of currently online user IDs.
+ * Get the set of currently online user IDs from Redis.
  */
-export function getOnlineUsers(): ReadonlySet<string> {
-  return onlineUsers
+export async function getOnlineUsers(): Promise<ReadonlySet<string>> {
+  return presenceMembers()
 }
 
 /**
@@ -341,7 +441,17 @@ export async function shutdownSocketIO(): Promise<void> {
     clearInterval(revalidationInterval)
     revalidationInterval = null
   }
-  onlineUsers.clear()
+  if (heartbeatCleanupInterval) {
+    clearInterval(heartbeatCleanupInterval)
+    heartbeatCleanupInterval = null
+  }
+  // Clear Redis presence set on shutdown
+  try {
+    const redis = getRedis()
+    await redis.del(PRESENCE_SET_KEY)
+  } catch {
+    // Redis may already be disconnected during shutdown
+  }
   if (io) {
     io.close()
     io = null

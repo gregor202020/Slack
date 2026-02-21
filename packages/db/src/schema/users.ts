@@ -6,6 +6,7 @@ import {
   boolean,
   integer,
   timestamp,
+  jsonb,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -60,6 +61,7 @@ export const users = pgTable(
       mode: 'date',
     }),
     quietHoursEnabled: boolean('quiet_hours_enabled').default(true).notNull(),
+    notificationPreferences: jsonb('notification_preferences'),
     failedOtpAttempts: integer('failed_otp_attempts').default(0).notNull(),
     lockedUntil: timestamp('locked_until', {
       withTimezone: true,

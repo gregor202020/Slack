@@ -20,6 +20,12 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/vault — Search vault (deleted content)
   // Super admin only, access is audit logged (spec Section 16.7)
   app.get('/', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -56,6 +62,12 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/vault/purges — List pending purge requests
   // Must be registered before /:vaultId to avoid route conflict
   app.get('/purges', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (_request, reply) => {
       const result = await listPendingPurges()
@@ -66,6 +78,12 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/admin/vault/export — Export vault content
   // Super admin only, audit logged
   app.post('/export', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin'), requireReauth],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -130,6 +148,12 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/admin/vault/:vaultId — Get vault item details
   app.get('/:vaultId', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -156,6 +180,12 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/admin/vault/:vaultId/purge — Request early purge
   // Super admin only, requires re-authentication (spec Section 16.7)
   app.post('/:vaultId/purge', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin'), requireReauth],
     handler: async (request, reply) => {
       const { id } = request.user!
@@ -168,6 +198,12 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE /api/admin/vault/:vaultId/purge — Cancel a pending early purge
   app.delete('/:vaultId/purge', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
     preHandler: [authenticate, requireRole('super_admin')],
     handler: async (request, reply) => {
       const { id } = request.user!

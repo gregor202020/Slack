@@ -45,7 +45,11 @@ function otpKey(phoneHash: string): string {
 // Constants
 // ---------------------------------------------------------------------------
 
-const OTP_EXPIRY_MS = 5 * 60 * 1000 // 5 minutes
+// OTP expiry driven by config (otpExpiryMinutes, default 5 minutes)
+function getOtpExpiryMs(): number {
+  const config = getConfig()
+  return config.otpExpiryMinutes * 60 * 1000
+}
 const OTP_FATIGUE_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 const OTP_FATIGUE_MAX = 3
 const VERIFY_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000 // 5 minutes
@@ -104,11 +108,12 @@ export async function requestOtp(
   logger.info({ userId: user.id, method }, 'OTP requested')
 
   // Generate OTP and store its hash
-  const otp = generateOtp()
+  const config = getConfig()
+  const otp = generateOtp(config.otpLength)
   const otpHash = hashToken(otp)
 
   const redis = getRedis()
-  await redis.set(otpKey(phoneHash), otpHash, 'PX', OTP_EXPIRY_MS)
+  await redis.set(otpKey(phoneHash), otpHash, 'PX', getOtpExpiryMs())
 
   // Record the OTP request attempt
   await db.insert(otpAttempts).values({
@@ -119,8 +124,6 @@ export async function requestOtp(
   })
 
   // Send OTP via Twilio SMS (or log in development mode)
-  const config = getConfig()
-
   if (config.isDevelopment) {
     // In development, log OTP for local testing
     logger.info({ phone, otp }, 'DEV OTP generated')

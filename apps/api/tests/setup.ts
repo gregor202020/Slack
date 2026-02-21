@@ -16,6 +16,7 @@ process.env.S3_ACCESS_KEY = 'test-access-key'
 process.env.S3_SECRET_KEY = 'test-secret-key'
 process.env.S3_FILE_DOMAIN = 'https://test-files.example.com'
 process.env.PII_ENCRYPTION_KEY = 'a'.repeat(64) // 32-byte hex key for AES-256
+process.env.INVITE_HMAC_SECRET = 'test-hmac-secret-at-least-32-chars-long'
 process.env.FIREBASE_SERVICE_ACCOUNT_PATH = ''
 
 beforeAll(async () => {

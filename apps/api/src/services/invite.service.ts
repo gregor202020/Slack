@@ -69,7 +69,7 @@ export async function sendInvite(
 
   // Generate token (256 bits) and HMAC signature
   const token = generateToken(32)
-  const signature = hmacSign(token + ':' + phoneHash, config.jwtSecret)
+  const signature = hmacSign(token + ':' + phoneHash, config.inviteHmacSecret)
   const tokenHash = hashToken(token)
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS)
 
@@ -214,7 +214,7 @@ export async function resendInvite(
 
   // Generate new token and signature
   const token = generateToken(32)
-  const signature = hmacSign(token + ':' + invite.phoneHash, config.jwtSecret)
+  const signature = hmacSign(token + ':' + invite.phoneHash, config.inviteHmacSecret)
   const tokenHash = hashToken(token)
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS)
 
@@ -286,7 +286,7 @@ export async function verifyInvite(
   }
 
   // Verify HMAC signature
-  const isValid = hmacVerify(token + ':' + invite.phoneHash, signature, config.jwtSecret)
+  const isValid = hmacVerify(token + ':' + invite.phoneHash, signature, config.inviteHmacSecret)
 
   if (!isValid) {
     throw new UnauthorizedError('Invalid invite signature', 'INVALID_INVITE_SIGNATURE')
