@@ -124,6 +124,7 @@ export default function VerifyPage() {
               value={digit}
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
+              aria-label={`Verification code digit ${i + 1}`}
               className="h-12 w-10 rounded-md bg-smoke-700 border border-smoke-600 text-center text-lg font-mono text-smoke-100 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
             />
           ))}

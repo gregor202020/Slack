@@ -183,11 +183,14 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-start justify-center pt-16"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
     >
-      <div className="fixed inset-0 bg-black/60" />
+      <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
 
       <div className="relative z-10 w-full max-w-2xl mx-4 rounded-lg bg-smoke-800 border border-smoke-600 shadow-xl overflow-hidden">
         {/* Search input */}
@@ -207,10 +210,11 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
           </svg>
           <input
             ref={inputRef}
-            type="text"
+            type="search"
             value={query}
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder="Search messages, channels, people..."
+            aria-label="Search messages, channels, and people"
             className="flex-1 bg-transparent text-sm text-smoke-100 placeholder:text-smoke-400 outline-none"
           />
           {isLoading && <Spinner size="sm" />}
@@ -240,7 +244,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         )}
 
         {/* Results */}
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto" aria-live="polite" aria-label="Search results">
           {query.length < 2 && (
             <div className="px-4 py-8 text-center text-sm text-smoke-400">
               Type at least 2 characters to search

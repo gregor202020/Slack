@@ -71,6 +71,7 @@ export default function SettingsPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setTheme('dark')}
+                aria-pressed={theme === 'dark'}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   theme === 'dark'
                     ? 'bg-brand text-white'
@@ -81,6 +82,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => setTheme('light')}
+                aria-pressed={theme === 'light'}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   theme === 'light'
                     ? 'bg-brand text-white'
@@ -110,6 +112,9 @@ export default function SettingsPage() {
             </div>
             <button
               onClick={() => setNotificationSound(!notificationSound)}
+              role="switch"
+              aria-checked={notificationSound}
+              aria-label="Notification sound"
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 notificationSound ? 'bg-brand' : 'bg-smoke-600'
               }`}
@@ -135,6 +140,9 @@ export default function SettingsPage() {
             </div>
             <button
               onClick={() => setNotificationDesktop(!notificationDesktop)}
+              role="switch"
+              aria-checked={notificationDesktop}
+              aria-label="Desktop notifications"
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 notificationDesktop ? 'bg-brand' : 'bg-smoke-600'
               }`}

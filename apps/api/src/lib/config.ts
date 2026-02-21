@@ -103,7 +103,7 @@ export function loadConfig(): AppConfig {
     s3SecretKey: optional('S3_SECRET_KEY', ''),
     s3FileDomain: optional('S3_FILE_DOMAIN', 'https://files.yourdomain.com'),
 
-    encryptionKey: required('ENCRYPTION_KEY'),
+    encryptionKey: required('PII_ENCRYPTION_KEY'),
 
     firebaseServiceAccountPath: optional(
       'FIREBASE_SERVICE_ACCOUNT_PATH',

@@ -22,6 +22,7 @@ import {
   ValidationError,
   announcementLockedError,
 } from '../lib/errors.js'
+import { logger } from '../lib/logger.js'
 import { logAudit } from '../lib/audit.js'
 import { getIO } from '../plugins/socket.js'
 import { emitToUser } from '../plugins/socket.js'
@@ -203,7 +204,7 @@ export async function createAnnouncement(
     id: announcement.id,
     title: announcement.title,
     venueId: announcement.venueId,
-  }).catch((err) => console.error('[push] Failed to notify new announcement:', err))
+  }).catch((err) => logger.error({ err }, 'Failed to notify new announcement'))
 
   return announcement
 }
@@ -563,7 +564,7 @@ export async function escalateAnnouncement(
       type: 'announcement_escalation',
       announcementId: announcement.id,
     },
-  ).catch((err) => console.error('[push] Failed to notify escalation:', err))
+  ).catch((err) => logger.error({ err }, 'Failed to notify escalation'))
 
   // Create reminder records to track the escalation
   for (const user of pendingUsers) {

@@ -69,6 +69,7 @@ export function MemberList({ channelId, onAddMembers }: MemberListProps) {
         placeholder="Search members..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        aria-label="Search members"
       />
 
       <div className="max-h-64 overflow-y-auto space-y-1">

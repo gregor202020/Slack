@@ -125,12 +125,13 @@ export function ChannelSettings({ isOpen, onClose, channel }: ChannelSettingsPro
       <div className="fixed inset-0 z-40" onClick={onClose}>
         <div className="fixed inset-0 bg-black/40" />
       </div>
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-smoke-800 border-l border-smoke-600 shadow-2xl flex flex-col overflow-hidden">
+      <aside className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-smoke-800 border-l border-smoke-600 shadow-2xl flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-label="Channel settings">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-smoke-600 px-6 py-4 shrink-0">
           <h2 className="text-lg font-semibold text-smoke-100">Channel Settings</h2>
           <button
             onClick={onClose}
+            aria-label="Close channel settings"
             className="text-smoke-400 hover:text-smoke-100 transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -282,7 +283,7 @@ export function ChannelSettings({ isOpen, onClose, channel }: ChannelSettingsPro
             </div>
           )}
         </div>
-      </div>
+      </aside>
 
       {/* Archive confirmation modal */}
       <Modal

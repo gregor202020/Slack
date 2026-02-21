@@ -75,7 +75,7 @@ jobs:
       S3_ACCESS_KEY: test-access-key
       S3_SECRET_KEY: test-secret-key
       S3_FILE_DOMAIN: https://test-files.example.com
-      ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      PII_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       FIREBASE_SERVICE_ACCOUNT_PATH: ''
     steps:
       - uses: actions/checkout@v4

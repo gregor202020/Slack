@@ -24,14 +24,14 @@ export function Sidebar() {
   const isDmsLoading = dms.length === 0
 
   return (
-    <aside className="flex flex-col w-64 bg-smoke-800 border-r border-smoke-600 h-full">
+    <aside className="flex flex-col w-64 bg-smoke-800 border-r border-smoke-600 h-full" role="complementary" aria-label="Sidebar navigation">
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 h-14 border-b border-smoke-600 shrink-0">
         <span className="text-lg font-bold tracking-wider text-smoke-100">THE SMOKER</span>
       </div>
 
       {/* Scrollable nav */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4" aria-label="Channel and direct message navigation">
         {/* Channels */}
         <div>
           <div className="flex items-center justify-between px-2 mb-1">
@@ -57,6 +57,8 @@ export function Sidebar() {
                     setActiveChannel(ch.id)
                     router.push(`/channels/${ch.id}`)
                   }}
+                  aria-current={activeChannelId === ch.id ? 'page' : undefined}
+                  aria-label={`Channel ${ch.name}${unread > 0 ? `, ${unread} unread messages` : ''}`}
                   className={clsx(
                     'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
                     activeChannelId === ch.id
@@ -100,6 +102,8 @@ export function Sidebar() {
                     setActiveDm(dm.id)
                     router.push(`/dms/${dm.id}`)
                   }}
+                  aria-current={activeDmId === dm.id ? 'page' : undefined}
+                  aria-label={`Direct message${unread > 0 ? `, ${unread} unread messages` : ''}`}
                   className={clsx(
                     'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
                     activeDmId === dm.id
@@ -126,6 +130,8 @@ export function Sidebar() {
         {isAdmin && (
           <button
             onClick={() => router.push('/admin/users')}
+            aria-current={pathname.startsWith('/admin') ? 'page' : undefined}
+            aria-label="Admin panel"
             className={clsx(
               'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
               pathname.startsWith('/admin')
@@ -144,6 +150,7 @@ export function Sidebar() {
         {/* Settings link */}
         <button
           onClick={() => router.push('/settings')}
+          aria-current={pathname === '/settings' ? 'page' : undefined}
           className={clsx(
             'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm transition-colors',
             pathname === '/settings'
@@ -161,6 +168,8 @@ export function Sidebar() {
         {user && (
           <button
             onClick={() => router.push('/profile')}
+            aria-current={pathname === '/profile' ? 'page' : undefined}
+            aria-label={`Your profile: ${user.displayName || `${user.firstName} ${user.lastName}`}`}
             className={clsx(
               'flex items-center gap-2 w-full px-2 py-1.5 rounded-md transition-colors',
               pathname === '/profile'

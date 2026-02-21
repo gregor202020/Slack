@@ -312,6 +312,7 @@ export function MessageComposer() {
           {uploadProgress === null && (
             <button
               onClick={removeFile}
+              aria-label="Remove attached file"
               className="shrink-0 p-0.5 text-smoke-400 hover:text-smoke-200 transition-colors"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -339,6 +340,7 @@ export function MessageComposer() {
             disabled={isDisabled || isSending}
             className="shrink-0 p-1.5 rounded-md text-smoke-400 hover:text-smoke-200 hover:bg-smoke-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Attach file"
+            aria-label="Attach file"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -349,6 +351,7 @@ export function MessageComposer() {
             type="file"
             onChange={handleFileInputChange}
             className="hidden"
+            aria-label="Choose file to attach"
           />
 
           <textarea
@@ -360,11 +363,13 @@ export function MessageComposer() {
             disabled={isDisabled}
             maxLength={MAX_MESSAGE_LENGTH}
             rows={1}
+            aria-label="Message input"
             className="flex-1 bg-transparent text-sm text-smoke-100 placeholder:text-smoke-400 resize-none focus:outline-none min-h-[36px] max-h-32"
           />
           <button
             onClick={handleSubmit}
             disabled={(!body.trim() && !selectedFile) || isSending || isDisabled || isOverLimit}
+            aria-label="Send message"
             className="shrink-0 p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

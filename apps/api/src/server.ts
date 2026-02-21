@@ -22,11 +22,12 @@ async function main(): Promise<void> {
   // Load and validate config first
   const config = loadConfig()
 
-  // Initialize Firebase Admin SDK for push notifications
-  initFirebase()
-
-  // Build the Fastify app
+  // Build the Fastify app (initializes the structured logger)
   const app = await buildApp()
+
+  // Initialize Firebase Admin SDK for push notifications
+  // (must be after buildApp so the structured logger is available)
+  initFirebase()
 
   // Start listening
   await app.listen({ port: config.port, host: config.host })

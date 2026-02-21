@@ -19,23 +19,31 @@ import { registerSwagger } from './plugins/swagger.js'
 import { registerRoutes } from './routes/index.js'
 import { AppError, ValidationError, InternalError } from './lib/errors.js'
 import { getConfig } from './lib/config.js'
-import { setLogger } from './lib/logger.js'
+import { setLogger, buildFileTransport } from './lib/logger.js'
 import { recordRequest, recordPrometheusRequest, getMetrics, getPrometheusMetrics } from './lib/metrics.js'
-import { trackError } from './lib/error-tracker.js'
+import { trackError, initErrorTracking, captureException } from './lib/error-tracker.js'
 import { sql as pgSql } from '@smoker/db'
 
 /** Threshold in ms above which requests are logged at warn level. */
 const SLOW_REQUEST_THRESHOLD_MS = 1000
 
 export async function buildApp(): Promise<FastifyInstance> {
+  // Initialize Sentry error tracking (no-op if SENTRY_DSN is not set)
+  await initErrorTracking()
+
   const config = getConfig()
 
-  const app = Fastify({
+  // File transport (writes to both stdout and LOG_FILE when configured)
+  const fileTransport = buildFileTransport(config.isDevelopment)
+
+  const app: FastifyInstance = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? (config.isDevelopment ? 'debug' : 'info'),
-      transport: config.isDevelopment
-        ? { target: 'pino-pretty', options: { colorize: true } }
-        : undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      transport: (fileTransport
+        ?? (config.isDevelopment
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined)) as any,
       // Redact sensitive data from logs per spec Section 16.12
       redact: {
         paths: [
@@ -130,6 +138,16 @@ export async function buildApp(): Promise<FastifyInstance> {
         },
         error.message,
       )
+
+      // Report server-side AppErrors (5xx) to Sentry
+      if (error.statusCode >= 500) {
+        captureException(error, {
+          requestId: correlationId,
+          userId,
+          route: request.url,
+          method: request.method,
+        })
+      }
 
       return reply.status(error.statusCode).send({
         error: {

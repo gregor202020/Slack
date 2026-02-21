@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="flex items-center justify-center h-full min-h-[200px] p-6">
+        <div className="flex items-center justify-center h-full min-h-[200px] p-6" role="alert">
           <div className="rounded-lg border border-smoke-600 bg-smoke-800 p-6 text-center max-w-sm w-full">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-red-900/50">
               <svg className="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -61,6 +61,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <p className="flex-1 min-w-0">{toast.message}</p>
       <button
         onClick={handleDismiss}
+        aria-label="Dismiss notification"
         className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-colors"
       >
         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -78,7 +79,7 @@ export function ToastProvider() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2" role="status" aria-live="polite" aria-label="Notifications">
       {toasts.map((toast) => (
         <ToastItem
           key={toast.id}

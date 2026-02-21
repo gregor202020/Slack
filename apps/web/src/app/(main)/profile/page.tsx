@@ -177,6 +177,7 @@ export default function ProfilePage() {
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 className="hidden"
+                aria-label="Upload profile picture"
                 onChange={handleFileChange}
               />
             </div>

@@ -13,6 +13,7 @@
     "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@sentry/nextjs": "^9.47.1",
     "@smoker/shared": "*",
     "clsx": "^2.1.0",
     "next": "^15.2.0",

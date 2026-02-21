@@ -167,6 +167,8 @@ export function MentionAutocomplete({ query, onSelect, onClose }: MentionAutocom
   return (
     <div
       ref={listRef}
+      role="listbox"
+      aria-label="Mention suggestions"
       className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto rounded-lg border border-smoke-600 bg-smoke-800 shadow-lg z-50"
     >
       {isLoading && allResults.length === 0 && (
@@ -176,6 +178,8 @@ export function MentionAutocomplete({ query, onSelect, onClose }: MentionAutocom
         <button
           key={result.type === 'special' ? result.handle : `user-${result.handle}`}
           type="button"
+          role="option"
+          aria-selected={idx === selectedIndex}
           onClick={() => onSelect(result.handle)}
           onMouseEnter={() => setSelectedIndex(idx)}
           className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${

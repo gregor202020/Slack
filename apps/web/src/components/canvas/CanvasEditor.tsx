@@ -441,6 +441,8 @@ export function CanvasEditor() {
           {/* Version history toggle */}
           <button
             onClick={handleShowVersions}
+            aria-expanded={showVersions}
+            aria-label="Toggle version history"
             className="text-xs px-3 py-1 rounded bg-smoke-700 text-smoke-300 hover:bg-smoke-600 transition-colors"
           >
             {showVersions ? 'Hide History' : 'History'}
@@ -476,6 +478,7 @@ export function CanvasEditor() {
           {error}
           <button
             onClick={() => setError(null)}
+            aria-label="Dismiss error"
             className="ml-2 underline hover:no-underline"
           >
             dismiss
@@ -491,6 +494,7 @@ export function CanvasEditor() {
             value={text}
             onChange={(e) => handleTextChange(e.target.value)}
             disabled={!canEdit}
+            aria-label="Canvas editor"
             placeholder={
               isLocked
                 ? 'This canvas is locked and read-only.'

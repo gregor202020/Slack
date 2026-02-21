@@ -25,12 +25,14 @@ interface EmojiPickerProps {
 
 export function EmojiPicker({ onSelect }: EmojiPickerProps) {
   return (
-    <div className="absolute right-0 top-full mt-1 z-50 bg-smoke-800 border border-smoke-600 rounded-lg shadow-xl p-2 w-[200px]">
+    <div className="absolute right-0 top-full mt-1 z-50 bg-smoke-800 border border-smoke-600 rounded-lg shadow-xl p-2 w-[200px]" role="listbox" aria-label="Emoji picker">
       <div className="grid grid-cols-4 gap-1">
         {EMOJI_LIST.map((emoji) => (
           <button
             key={emoji}
             onClick={() => onSelect(emoji)}
+            role="option"
+            aria-label={`React with ${emoji}`}
             className="p-1.5 rounded hover:bg-smoke-700 text-lg leading-none transition-colors cursor-pointer"
           >
             {emoji}

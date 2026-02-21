@@ -54,7 +54,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </ErrorBoundary>
       <div className="flex flex-col flex-1 min-w-0">
         <Header />
-        <main className="flex-1 overflow-hidden">
+        <main id="main-content" role="main" className="flex-1 overflow-hidden">
           <ErrorBoundary>
             {children}
           </ErrorBoundary>

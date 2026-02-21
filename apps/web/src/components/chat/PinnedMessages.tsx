@@ -85,14 +85,15 @@ export function PinnedMessages({ channelId, isOpen, onClose }: PinnedMessagesPro
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Pinned messages">
+      <div className="fixed inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
       <div className="relative z-10 w-full max-w-md bg-smoke-800 border-l border-smoke-600 shadow-xl flex flex-col h-full animate-in slide-in-from-right">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-smoke-600 px-6 py-4 shrink-0">
           <h2 className="text-lg font-semibold text-smoke-100">Pinned Messages</h2>
           <button
             onClick={onClose}
+            aria-label="Close pinned messages"
             className="text-smoke-400 hover:text-smoke-100 transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

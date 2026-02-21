@@ -44,7 +44,7 @@ export function encryptPii(plaintext: string): string {
   const key = Buffer.from(config.encryptionKey, 'hex');
 
   if (key.length !== 32) {
-    throw new Error('ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)');
+    throw new Error('PII_ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)');
   }
 
   const iv = randomBytes(IV_LENGTH);
@@ -65,7 +65,7 @@ export function decryptPii(ciphertext: string): string {
   const key = Buffer.from(config.encryptionKey, 'hex');
 
   if (key.length !== 32) {
-    throw new Error('ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)');
+    throw new Error('PII_ENCRYPTION_KEY must be exactly 32 bytes (64 hex characters)');
   }
 
   const parts = ciphertext.split(':');

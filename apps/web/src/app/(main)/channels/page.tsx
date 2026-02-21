@@ -91,6 +91,7 @@ export default function ChannelsPage() {
         <div className="flex gap-1 bg-smoke-800 rounded-lg p-1 w-fit">
           <button
             onClick={() => setFilter('my')}
+            aria-pressed={filter === 'my'}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
               filter === 'my'
                 ? 'bg-smoke-700 text-smoke-100'
@@ -101,6 +102,7 @@ export default function ChannelsPage() {
           </button>
           <button
             onClick={() => setFilter('browse')}
+            aria-pressed={filter === 'browse'}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
               filter === 'browse'
                 ? 'bg-smoke-700 text-smoke-100'
@@ -115,6 +117,7 @@ export default function ChannelsPage() {
           placeholder="Search channels..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search channels"
         />
       </div>
 

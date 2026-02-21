@@ -18,12 +18,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b border-smoke-600 px-4 pt-3">
-        <div className="flex items-center gap-1">
+      <nav className="border-b border-smoke-600 px-4 pt-3" aria-label="Admin navigation">
+        <div className="flex items-center gap-1" role="tablist">
           {tabs.map((tab) => (
             <button
               key={tab.href}
               onClick={() => router.push(tab.href)}
+              role="tab"
+              aria-selected={pathname.startsWith(tab.href)}
+              aria-current={pathname.startsWith(tab.href) ? 'page' : undefined}
               className={clsx(
                 'px-3 py-2 text-sm font-medium rounded-t-md transition-colors',
                 pathname.startsWith(tab.href)
@@ -35,7 +38,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
           ))}
         </div>
-      </div>
+      </nav>
       <div className="flex-1 overflow-auto p-6">
         <ErrorBoundary>
           {children}

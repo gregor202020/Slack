@@ -122,9 +122,8 @@ export async function requestOtp(
   const config = getConfig()
 
   if (config.isDevelopment) {
-    // In development, log OTP to console for local testing
-    // eslint-disable-next-line no-console
-    console.log(`[DEV] OTP for ${phone}: ${otp}`)
+    // In development, log OTP for local testing
+    logger.info({ phone, otp }, 'DEV OTP generated')
   } else {
     const twilio = (await import('twilio')).default
     const client = twilio(config.twilioAccountSid, config.twilioAuthToken)

@@ -11,6 +11,7 @@ import { eq, and, desc, gte, lt, sql, or, isNull } from 'drizzle-orm'
 import { db, shifts, shiftSwaps, users, venues, userVenues } from '@smoker/db'
 import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '../lib/errors.js'
 import { shiftSwapLockedError } from '../lib/errors.js'
+import { logger } from '../lib/logger.js'
 import { logAudit } from '../lib/audit.js'
 import { emitToUser } from '../plugins/socket.js'
 import { notifyShiftUpdate } from './notification.service.js'
@@ -236,7 +237,7 @@ export async function createShift(
 
   // Push notification (non-blocking)
   notifyShiftUpdate({ id: shift.id, userId: data.userId, type: 'created' })
-    .catch((err) => console.error('[push] Failed to notify shift created:', err))
+    .catch((err) => logger.error({ err }, 'Failed to notify shift created'))
 
   return shift
 }
@@ -334,7 +335,7 @@ export async function updateShift(
 
   // Push notification (non-blocking)
   notifyShiftUpdate({ id: shiftId, userId: updated.userId, type: 'updated' })
-    .catch((err) => console.error('[push] Failed to notify shift updated:', err))
+    .catch((err) => logger.error({ err }, 'Failed to notify shift updated'))
 
   return updated
 }
@@ -376,7 +377,7 @@ export async function deleteShift(
 
   // Push notification (non-blocking)
   notifyShiftUpdate({ id: shiftId, userId: existing.userId, type: 'deleted' })
-    .catch((err) => console.error('[push] Failed to notify shift deleted:', err))
+    .catch((err) => logger.error({ err }, 'Failed to notify shift deleted'))
 }
 
 // ---------------------------------------------------------------------------
@@ -483,7 +484,7 @@ export async function requestSwap(
 
   // Push notification (non-blocking)
   notifyShiftUpdate({ id: swap.id, userId: data.targetUserId, type: 'swap_requested' })
-    .catch((err) => console.error('[push] Failed to notify swap requested:', err))
+    .catch((err) => logger.error({ err }, 'Failed to notify swap requested'))
 
   return swap
 }
@@ -609,7 +610,7 @@ export async function acceptSwap(
 
   // Push notification (non-blocking)
   notifyShiftUpdate({ id: swap.id, userId: swap.requesterUserId, type: 'swap_accepted' })
-    .catch((err) => console.error('[push] Failed to notify swap accepted:', err))
+    .catch((err) => logger.error({ err }, 'Failed to notify swap accepted'))
 }
 
 // ---------------------------------------------------------------------------
@@ -671,7 +672,7 @@ export async function declineSwap(
 
   // Push notification (non-blocking)
   notifyShiftUpdate({ id: swap.id, userId: swap.requesterUserId, type: 'swap_declined' })
-    .catch((err) => console.error('[push] Failed to notify swap declined:', err))
+    .catch((err) => logger.error({ err }, 'Failed to notify swap declined'))
 }
 
 // ---------------------------------------------------------------------------

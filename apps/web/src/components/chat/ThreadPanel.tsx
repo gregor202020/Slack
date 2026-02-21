@@ -53,12 +53,13 @@ export function ThreadPanel() {
   if (!activeThreadId) return null
 
   return (
-    <div className="w-96 border-l border-smoke-600 flex flex-col h-full bg-smoke-900 animate-slide-in-right">
+    <aside className="w-96 border-l border-smoke-600 flex flex-col h-full bg-smoke-900 animate-slide-in-right" role="complementary" aria-label="Thread replies">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-smoke-600">
-        <h3 className="text-sm font-semibold text-smoke-100">Thread</h3>
+        <h2 className="text-sm font-semibold text-smoke-100">Thread</h2>
         <button
           onClick={closeThread}
+          aria-label="Close thread"
           className="p-1 rounded hover:bg-smoke-700 text-smoke-400 hover:text-smoke-200 transition-colors"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -68,7 +69,7 @@ export function ThreadPanel() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      <div className="flex-1 overflow-y-auto px-2 py-2" role="log" aria-live="polite" aria-label="Thread messages">
         {/* Parent message */}
         {parentMessage && (
           <div className="pb-3 mb-3 border-b border-smoke-700">
@@ -104,11 +105,13 @@ export function ThreadPanel() {
             onKeyDown={handleKeyDown}
             placeholder="Reply..."
             rows={1}
+            aria-label="Thread reply input"
             className="flex-1 bg-transparent text-sm text-smoke-100 placeholder:text-smoke-400 resize-none focus:outline-none min-h-[36px] max-h-24"
           />
           <button
             onClick={handleSubmit}
             disabled={!body.trim() || isSending}
+            aria-label="Send reply"
             className="shrink-0 p-1.5 rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -117,6 +120,6 @@ export function ThreadPanel() {
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   )
 }

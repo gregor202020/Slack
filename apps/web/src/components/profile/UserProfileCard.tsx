@@ -41,7 +41,7 @@ export function UserProfileCard({
             {name}
           </h3>
           {status === 'active' && (
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" title="Active" />
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" title="Active" aria-label="Online" role="status" />
           )}
         </div>
         {displayName && displayName !== fullName && (

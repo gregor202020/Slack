@@ -108,6 +108,7 @@ export function AddMemberModal({ isOpen, onClose, channelId }: AddMemberModalPro
                 {user.fullName || user.displayName}
                 <button
                   onClick={() => handleRemoveSelected(user.id)}
+                  aria-label={`Remove ${user.fullName || user.displayName}`}
                   className="text-brand hover:text-brand-hover"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -124,6 +125,7 @@ export function AddMemberModal({ isOpen, onClose, channelId }: AddMemberModalPro
           placeholder="Search users by name..."
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
+          aria-label="Search users to add"
         />
 
         {/* Search results */}

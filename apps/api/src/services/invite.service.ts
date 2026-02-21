@@ -9,6 +9,7 @@
 import { eq, and, gt, desc, isNull, lt } from 'drizzle-orm'
 import { db, invites, users } from '@smoker/db'
 import { hashToken, generateToken, sha256, hmacSign, hmacVerify } from '../lib/crypto.js'
+import { logger } from '../lib/logger.js'
 import { logAudit } from '../lib/audit.js'
 import { getConfig } from '../lib/config.js'
 import {
@@ -92,8 +93,7 @@ export async function sendInvite(
 
   // Send SMS in production, log in development
   if (config.isDevelopment) {
-    // eslint-disable-next-line no-console
-    console.log(`[DEV] Invite link for ${phone}: ${inviteLink}`)
+    logger.info({ phone, inviteLink }, 'DEV invite link generated')
   } else {
     const twilio = (await import('twilio')).default
     const client = twilio(config.twilioAccountSid, config.twilioAuthToken)
@@ -234,8 +234,7 @@ export async function resendInvite(
   // store an encrypted phone alongside the hash, but for now we log in dev
   // and return the link for the admin to forward.
   if (config.isDevelopment) {
-    // eslint-disable-next-line no-console
-    console.log(`[DEV] Resent invite link (id=${inviteId}): ${inviteLink}`)
+    logger.info({ inviteId, inviteLink }, 'DEV resent invite link')
   }
 
   // Audit log

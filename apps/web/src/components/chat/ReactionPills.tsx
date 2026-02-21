@@ -46,6 +46,8 @@ export function ReactionPills({ reactions, currentUserId, onToggle }: ReactionPi
         <button
           key={group.emoji}
           onClick={() => onToggle(group.emoji)}
+          aria-label={`${group.emoji} reaction, ${group.count} ${group.count === 1 ? 'person' : 'people'}${group.hasCurrentUser ? ', click to remove' : ', click to add'}`}
+          aria-pressed={group.hasCurrentUser}
           className={clsx(
             'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors cursor-pointer',
             group.hasCurrentUser

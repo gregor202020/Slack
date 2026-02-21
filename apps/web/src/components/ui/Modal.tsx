@@ -34,11 +34,14 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
     >
-      <div className="fixed inset-0 bg-black/60" />
+      <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
       <div
         className={clsx(
           'relative z-10 w-full max-w-lg rounded-lg bg-smoke-800 border border-smoke-600 shadow-xl',
@@ -46,9 +49,10 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
         )}
       >
         <div className="flex items-center justify-between border-b border-smoke-600 px-6 py-4">
-          <h2 className="text-lg font-semibold text-smoke-100">{title}</h2>
+          <h2 id="modal-title" className="text-lg font-semibold text-smoke-100">{title}</h2>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             className="text-smoke-400 hover:text-smoke-100 transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
