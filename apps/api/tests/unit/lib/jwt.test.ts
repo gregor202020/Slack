@@ -144,9 +144,9 @@ describe('JWT — verifyToken', () => {
   it('should throw INVALID_TOKEN for a tampered token', () => {
     const token = signAccessToken({ userId: 'user-1', sessionId: 'session-1' })
 
-    // Tamper with the payload
+    // Tamper with the signature (last part) to produce an invalid-signature error
     const parts = token.split('.')
-    parts[1] = parts[1]! + 'tampered'
+    parts[2] = parts[2]!.split('').reverse().join('')
     const tamperedToken = parts.join('.')
 
     expect(() => verifyToken(tamperedToken)).toThrow('Invalid token')

@@ -29,7 +29,7 @@ const MAX_TITLE_LENGTH = 300
  * Returns deduplicated URLs, capped at MAX_URLS_PER_MESSAGE.
  */
 export function extractUrls(body: string): string[] {
-  const urlRegex = /https?:\/\/[^\s<>[\]()'"]+(?:\([^\s<>[\]()'"]*\))?[^\s<>[\]()'".,;:!?]/g
+  const urlRegex = /https?:\/\/[^\s<>[\]()'"]+(?:\([^\s<>[\]()'"]*\)|[^\s<>[\]()'".,;:!?])/g
   const matches = body.match(urlRegex)
   if (!matches) return []
 

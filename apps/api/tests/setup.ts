@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { config } from 'dotenv'
+import { pino } from 'pino'
 import { beforeAll, afterAll } from 'vitest'
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,15 @@ process.env.S3_SECRET_KEY = process.env.S3_SECRET_KEY || 'minioadmin'
 process.env.S3_FILE_DOMAIN = process.env.S3_FILE_DOMAIN || 'http://localhost:9002/smoker-test-files'
 process.env.PII_ENCRYPTION_KEY = process.env.PII_ENCRYPTION_KEY || 'a'.repeat(64)
 process.env.INVITE_HMAC_SECRET = process.env.INVITE_HMAC_SECRET || 'test-hmac-secret-at-least-32-chars-long'
+
+// ---------------------------------------------------------------------------
+// Initialize a minimal logger so Redis/DB error handlers don't throw
+// "Logger not initialized" when infrastructure isn't running.
+// ---------------------------------------------------------------------------
+
+import { setLogger } from '../src/lib/logger.js'
+const testLogger = pino({ level: 'silent' })
+setLogger(testLogger as unknown as Parameters<typeof setLogger>[0])
 
 beforeAll(async () => {
   console.log(`Test suite starting... (DB: ${process.env.DATABASE_URL})`)
