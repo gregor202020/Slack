@@ -19,12 +19,12 @@
     "db:seed": "tsx src/seed/index.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.38.0",
+    "drizzle-orm": "^0.45.1",
     "postgres": "^3.4.0",
     "@smoker/shared": "*"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.0",
+    "drizzle-kit": "^0.31.9",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "dotenv": "^16.4.0"
